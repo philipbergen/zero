@@ -68,6 +68,10 @@ install_libs() {
 		echo "*** INFO: Python module pyzmq is not installed, installing."
 		pip install --user pyzmq
 	}
+    if [ ! -f $here/py/docopt.py ]; then
+        echo "*** INFO: Python module docopt is not installed, installing into $here/py."
+        curl https://raw.github.com/docopt/docopt/master/docopt.py > $here/py/docopt.py
+    fi
 }
 
 ##
