@@ -7,14 +7,13 @@
 ''' Zero MQ command line interface.
 
 Usage:
-    0q [--dbg] (push|req|rep|pub) <socket> [-b] [--raw] (-|<message> [<message>...])
-    0q [--dbg] pull <socket> [-b] [-n MESSAGES]
-    0q [--dbg] sub <socket> [-b] [<subscription>...] [-n MESSAGES]
+    zero [--dbg] (push|req|rep|pub) <socket> [-b] (-|<message> [<message>...])
+    zero [--dbg] pull <socket> [-b] [-n MESSAGES]
+    zero [--dbg] sub <socket> [-b] [<subscription>...] [-n MESSAGES]
 
 Options:
     -b, --bind      Use bind instead of connect
-    -n MESSAGES     Number of messages before exiting [default: 1]
-    --raw           Sends messages exactly like they are, prevents JSON validation
+    -n MESSAGES     Number of messages before exiting [default: inf]
     --dbg           Enables debug output
 
 <socket> is a zmq socket or just a port, in which case the host is assumed to be
@@ -26,114 +25,192 @@ from stdin, the assumption is that each message is contained in a single line.
 
 <subscription> is any string, only messages that start with any of the subscriptions
 will be retrieved. Omit this value to subscribe to all messages.
-
 '''
 import sys
+import zmq
 
+__all__ = ('ZeroSetup', 'zero')
 
+class ZeroSetup(object):
+    ''' Config and input to a zmq socket setup.
 
-def zero_args(argv=None):
-    ''' Interprets argv (sys.argv[1:]) in accordance with the doc for this file.
-        Returns an args dict for zero.
+        Examples:
+         * Setup for pull on port 8000 that gets response messages from stdin and prints some debugging info:
+            z = ZeroSetup.pull('8000', ZeroSetup.iter_stdin()).binding().debugging()
+
+         * Always reply 'ok' to all req on port 800:
+            z = ZeroSetup.rep('8000', itertools.repeat('ok')).binding().debugging()
+    
+         * Sub pub forwarder (Fan in sub@tcp://localhost:8000 to fan out pub@tcp://*:8001):
+            subscriber = zero(ZeroSetup('sub', '8000').binding())
+            publisher = zero(ZeroSetup('pub', '8001', subscriber).binding())
+            for n in publisher:
+                print 'This will never print'
     '''
-    from docopt import docopt
-    args = docopt(__doc__, argv)
-    res =
-    if args['-n'] != 'inf':
-        args['-n'] = int(args['-n'])
-    try:
-        int(args['<socket>'])
-        if args['--bind']:
-            args['<socket>'] = 'tcp://*:' + args['<socket>']
-        else:
-            args['<socket>'] = 'tcp://localhost:' + args['<socket>']
-        if args['--dbg']:
-            print '--> Set the socket to', args['<socket>']
-    except ValueError:
-        pass
-    methods = ['push', 'req', 'rep', 'pub', 'pull', 'sub']
-    args['<method>'] = [meth for meth in methods if args[meth]][0]
-    if args['<message>'] and not args['--raw']:
-        import json
-        for n, msg in enumerate(args['<message>']):
-            try:
-                ob = json.loads(msg)
-            except ValueError, e:
-                if args['--dbg']:
-                    print '--> Parsing message %d failed (%s): %s' % (n, e, msg)
-                raise                    
-            if args['--dbg']:
-                print '--> Message %d: %r' % (n, ob)
-    if args['--dbg']:
-        print '--> Arguments:', args['<socket>'], '-b' if args['--bind'] else '', \
-            args['<method>'], args['<subscription>'], '-n', args['-n'], \
-            '--raw' if args['--raw'] else '', args['<message>'] if not args['-'] else '-'
-    return args
 
-def zero(args):
-    ''' Yields received messages while performing the method in args. 
-        args -- as returned from zero_args
-    '''
-    def sock(ctx, args):
-        zmq_const = getattr(zmq, args['<method>'].upper())
-        if args['--dbg']:
-            print '--> ZMQ Method %s (%s)' % (args['<method>'], zmq_const)
-        res = ctx.socket(zmq_const)
-        res.setsockopt(zmq.LINGER, 1000)
-        if args['<method>'] == 'sub':
-            if not args['<subscription>']:
-                if args['--dbg']:
-                    print '--> Subscribing to all messages'
-                res.setsockopt(zmq.SUBSCRIBE, '')
+    @classmethod
+    def iter_stdin(self):
+        from itertools import imap
+        return imap(lambda x:x.strip(), iter(sys.stdin.readline, b''))
+
+    @classmethod
+    def argv(cls, argv=sys.argv[1:]):
+        ''' Interprets argv (sys.argv[1:]) in accordance with the doc for this file.
+            Returns a ZeroSetup.
+
+            Methods pub, req, rep and, push require messages input.
+        '''
+        from docopt import docopt
+        args = docopt(__doc__, argv)
+        method = [meth for meth in ['push', 'req', 'rep', 'pub', 'pull', 'sub'] if args[meth]][0]
+        
+        msgloop = None
+        if ZeroSetup.method_transmits(method):
+            if not args['-']:
+                msgloop = args['<message>']
+        elif args['-n'] != 'inf':
+            msgloop = range(int(args['-n']))
+        setup = ZeroSetup(method, args['<socket>'], msgloop).binding(args['--bind']).debugging(args['--dbg'])
+        if args['<subscription>']:
+            setup.subscribing(args['<subscription>'])
+        setup.debug(repr(setup))
+        return setup
+
+    def __init__(self, method, socket, messageloop=None):
+        ''' Creates a setup for zmq, not the actual socket.
+            method -- Any ZMQ method (PAIR PUB SUB REQ REP DEALER ROUTER PULL PUSH XPUB XSUB)
+            socket -- A zmq socket or simply a port number
+            messageloop -- Determines how long the zmq will run, anything that can be wrapped in iter is fine.
+                           Default messageloop is to run forever or, if method is pub, req, rep or push until stdin is empty.
+                           For methods that send the message is created from the output of each iteration on messageloop.
+        '''
+        from itertools import count
+        self.zmq_method = getattr(zmq, method.upper())
+        self.method = method.lower()
+        self._socket = socket
+        self._options = []
+        if messageloop is None:
+            if self.transmits:
+                self._options.append('messageloop=stdin.readline')
+                self.loop = self.iter_stdin()
             else:
-                for subsc in args['<subscription>']:
-                    if args['--dbg']:
-                        print '--> Subscribing to', subsc
-                    res.setsockopt(zmq.SUBSCRIBE, subsc)
-        if args['--bind']:
-            res.bind(args['<socket>'])
+                self._options.append('messageloop=count')
+                self.loop = count()
         else:
-            res.connect(args['<socket>'])
+            self.loop = iter(messageloop)
+        self.binding(False).debugging(False)
+        self.linger = 1000
+
+    def _debug_off(self, s, *args, **kwarg):
+        pass
+
+    def _debug_on(self, s, *args, **kwarg):
+        if args:
+            s = s % args
+        if kwarg:
+            s = s % kwarg
+        print '-->', s[:110]
+
+    def binding(self, val=True):
+        if val:
+            self._options.append('(bind)')
+        self.bind = val
+        return self
+
+    def subscribing(self, heads):
+        self._filters = list(iter(heads))
+        return self
+
+    def debugging(self, val=True):
+        self.debug = self._debug_on if val else self._debug_off
+        return self
+
+    @classmethod
+    def method_transmits(cls, method, tx='push pub req rep'.split()):
+        return method in tx
+
+    @property
+    def transmits(self):
+        return self.method_transmits(self.method)
+
+    @property
+    def replies(self):
+        return self.method == 'rep'
+
+    @property
+    def yields(self, tx='pull sub req rep'.split()):
+        return self.method in tx
+
+    @property
+    def subscriptions(self):
+        if self.method == 'sub':
+            for res in getattr(self, '_filters', ['']):
+                self.debug('Subscription %r', res)
+                yield res
+
+    @property
+    def socket(self):
+        if self._socket[:1] == ':':
+            self._socket = self._socket[1:]
+        try:
+            int(self._socket)
+            if self.bind:
+                return 'tcp://*:' + self._socket
+            return 'tcp://localhost:' + self._socket
+        except ValueError:
+            return self._socket
+
+    def __repr__(self):
+        return '<ZeroSetup %s %s %s%s%s%s %s>' % (self.method, self.socket, list(self.subscriptions),
+                                            ' TX' if self.transmits else '', ' RX' if self.replies else '',
+                                            ' YLD' if self.yields else '', ' '.join(self._options))
+    __str__ = __repr__
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        return self.loop.next()
+
+def zero(setup):
+    'Yields received messages based on supplied ZeroSetup'
+    def sock(ctx, setup):
+        res = ctx.socket(setup.zmq_method)
+        if setup.linger:
+            res.setsockopt(zmq.LINGER, setup.linger)
+        for subsc in setup.subscriptions:
+            res.setsockopt(zmq.SUBSCRIBE, subsc)
+        if setup.bind:
+            res.bind(setup.socket)
+        else:
+            res.connect(setup.socket)
+        setup.debug('Created ZMQ socket %r', setup)
         return res
         
-    def send(s, args, n, msg):
-        if not args['--raw']:
-            msg = msg.strip()
-        if args['--dbg']:
-            print '--> Sending (%d)' % n, msg
+    def send(s, setup, msg):
+        setup.debug('Sending %s', msg)
         tracker = s.send(msg, copy=False, track=True)
         tracker.wait()
 
-    from itertools import count
-    method = args['<method>']
-    loop = args['<message>']
-    if method in ['pull', 'sub']:
-        if args['-n'] == 'inf':
-            loop = count()
-        else:
-            loop = xrange(args['-n'])
-    elif args['-']:
-        loop = iter(sys.stdin.readline, b'')
     try:
-        import zmq
         from time import sleep
+        naptime = 0.5
         ctx = zmq.Context()
-        s = sock(ctx, args)
-        for n, msg in enumerate(loop):
-            if method in ['push', 'pub', 'req']:
-                if not n:
-                    sleep(0.1) # TODO: Find out how to tell when it is connected
-                send(s, args, n, msg)
-            if method in ['req', 'rep', 'pull', 'sub']:
+        s = sock(ctx, setup)
+        for msg in setup:
+            if setup.transmits and not setup.replies:
+                sleep(naptime) # TODO: Find out how to tell when it is connected
+                naptime = 0
+                send(s, setup, msg)
+            if setup.yields:
                 yield s.recv()
-                if method == 'rep':
-                    send(s, args, n, msg)
+                if setup.replies:
+                    send(s, setup, msg)
     except KeyboardInterrupt:
-        if args['--dbg']:
-            print '--> Quit by user'
+        setup.debug('Quit by user')
 
 def main():
-    for msg in zero(zero_args()):
+    for msg in zero(ZeroSetup.argv()):
         sys.stdout.write(msg + '\n')
         sys.stdout.flush()
 
