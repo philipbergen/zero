@@ -16,14 +16,16 @@ def log_format(config, sender, level, msg):
     return dumps([sender, gethostname(), level, strftime(config['ts-format']), msg])
                  
 def main():
-    from sys import argv
+    from sys import argv, exit
     from json import load
     from itertools import imap
     from collections import deque
     from zero import zero, ZeroSetup
     from os.path import dirname, exists
-    conf = dirname(__file__) + '/../log.json'
     args = deque(argv[1:])
+    if len(args) < 4:
+        exit(__doc__)
+    conf = dirname(__file__) + '/../log.json'
     level = args.popleft()
     if exists(level):
         conf = level

@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 ''' USAGE:
-      log.py <config>
+      zlog-sink [<config>]
+
+    <config> default is log.json
 '''
 
 import json
@@ -10,7 +12,7 @@ from clint.textui import puts, colored
 class Logout(object):
     def __init__(self, ts_format):
         self.colwidth = [0] * 5
-        self.lvls = {'debug': colored.white, 'info': colored.green, 'warning': colored.yellow, 'error': colored.red, '?': colored.magenta}
+        self.lvls = {'lol': colored.white, 'fyi': colored.green, 'wtf': colored.yellow, 'omg': colored.red, '?': colored.magenta}
         self.ts_format = ts_format
 
     def tty(self, logline):
@@ -20,7 +22,7 @@ class Logout(object):
 
         from time import strftime
         try:
-            lvl, ts, host, sender, msg = json.loads(logline)
+            sender, host, lvl, ts, msg = json.loads(logline)
         except (ValueError, TypeError) as e:
             lvl = host = sender = '?'
             ts = strftime(self.ts_format)
@@ -44,26 +46,29 @@ class Logout(object):
             print self.lvls[lvl](' ------>'), m
 
 def main():
-    import sys
-    import json
-    config = json.load(open(sys.argv[1]))['log']
-    port, logfile = config['port'], config['file']
-    from zero import zero, zero_args
-    args = zero_args(('%s -b sub -n inf' % port).split(' '))
-
-    print 'Logger started on', port
-    with open(logfile, 'a') as fout:
-        logout = Logout(config.get('ts-format', '%Y-%m-%dT%H:%M:%S%Z'))
+    from sys import argv
+    from json import load
+    from zlog import log_format
+    from zero import zero, ZeroSetup
+    from os.path import dirname, exists
+    conf = dirname(__file__) + '/../log.json'
+    if len(argv) > 1:
+        conf = argv[1]
+    with open(conf) as fin:
+        conf = load(fin)['log']
+    setup = ZeroSetup('pull', str(conf['port'])).binding()
+    print 'Logger started for', setup
+    with open(conf['file'], 'a', 1) as fout:
+        logout = Logout(conf.get('ts-format', '%Y-%m-%dT%H:%M:%S%Z'))
         try:
-            for logline in zero(args):
-                fout.write(logline)
+            for line in zero(setup):
+                fout.write(line)
                 fout.write('\n')
-                logout.tty(logline)
+                logout.tty(line)
         except KeyboardInterrupt:
             print 'Logger quitting.'
             sock.close()
-    print 'Logger stopped on', port
-    sys.exit(0)
+    print 'Logger stopped on', setup
 
 if __name__ == '__main__':
     main()

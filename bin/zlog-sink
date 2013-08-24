@@ -1,0 +1,3 @@
+#!/bin/bash
+here="$(cd $(dirname ${BASH_SOURCE[0]}); pwd)"
+python $here/../py/zlog-sink.py "$@"

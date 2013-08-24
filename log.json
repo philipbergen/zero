@@ -3,6 +3,6 @@
         "ts-format": "%Y-%m-%dT%H:%M:%S%Z",
         "host": "localhost",
         "port": 8800,
-        "file": "log.json"
+        "file": "logged.json"
     }
 }

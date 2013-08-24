@@ -1,5 +1,6 @@
 /env.sh
 /env.py
+/logged.json
 .*.swp
 
 
