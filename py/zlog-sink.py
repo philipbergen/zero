@@ -26,6 +26,7 @@ class Logout(object):
         try:
             sender, host, lvl, ts, msg = loads(logline)
         except (ValueError, TypeError) as e:
+            print format_exc()
             lvl = host = sender = '?'
             ts = strftime(self.ts_format)
             msg = logline
@@ -52,7 +53,6 @@ def main():
     from sys import argv
     from json import load
     from os import environ
-    from zlog import log_format
     from zero import zero, ZeroSetup
     from os.path import exists
     conf = HERE + '/log.json'

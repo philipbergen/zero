@@ -100,6 +100,7 @@ class ZeroSetup(object):
             self.loop = iter(messageloop)
         self.binding(False).debugging(False)
         self.linger = 1000
+        self.blocking = True
 
     def _debug_off(self, s, *args, **kwarg):
         pass
@@ -123,6 +124,10 @@ class ZeroSetup(object):
 
     def debugging(self, val=True):
         self.debug = self._debug_on if val else self._debug_off
+        return self
+
+    def nonblocking(self, val=False):
+        self.blocking = not val
         return self
 
     @classmethod
@@ -172,40 +177,57 @@ class ZeroSetup(object):
     def next(self):
         return self.loop.next()
 
-def zero(setup):
+class Zero(object):
     'Yields received messages based on supplied ZeroSetup'
-    def sock(ctx, setup):
-        res = ctx.socket(setup.zmq_method)
+    def __init__(self, setup):
+        self.setup = setup
+        self.sock = zmq.Context().socket(setup.zmq_method)
         if setup.linger:
-            res.setsockopt(zmq.LINGER, setup.linger)
+            self.sock.setsockopt(zmq.LINGER, setup.linger)
         for subsc in setup.subscriptions:
-            res.setsockopt(zmq.SUBSCRIBE, subsc)
+            self.sock.setsockopt(zmq.SUBSCRIBE, subsc)
         if setup.bind:
-            res.bind(setup.socket)
+            self.sock.bind(setup.socket)
         else:
-            res.connect(setup.socket)
+            self.sock.connect(setup.socket)
         setup.debug('Created ZMQ socket %r', setup)
-        return res
-        
-    def send(s, setup, msg):
-        setup.debug('Sending %s', msg)
-        tracker = s.send(msg, copy=False, track=True)
-        tracker.wait()
+        self.naptime = 0.5
 
-    try:
+    def send(self, msg=None):
         from time import sleep
-        naptime = 0.5
-        ctx = zmq.Context()
-        s = sock(ctx, setup)
-        for msg in setup:
-            if setup.transmits and not setup.replies:
-                sleep(naptime) # TODO: Find out how to tell when it is connected
-                naptime = 0
-                send(s, setup, msg)
+        if msg is None and self.setup.loop is not None:
+            msg = self.setup.loop.next()
+        self.setup.debug('Sending %s', msg[:100])
+        sleep(self.naptime) # TODO: Find out how to tell when it is connected
+        self.naptime = 0
+        tracker = self.sock.send(msg, copy=False, track=True)
+        if self.setup.blocking:
+            tracker.wait()
+
+    def __repr__(self):
+        return 'Zero(%r)' % self.setup
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        if self.setup.transmits and not self.setup.replies:
+            self.send()
+        if self.setup.yields:
+            res = self.sock.recv()
+            if self.setup.replies:
+                return (res, self.send)
+            return res
+        return None
+
+def zero(setup):
+    z = Zero(setup)    
+    try:
+        for msg in z:
             if setup.yields:
-                yield s.recv()
+                yield msg
                 if setup.replies:
-                    send(s, setup, msg)
+                    msg[1]()
     except KeyboardInterrupt:
         setup.debug('Quit by user')
 

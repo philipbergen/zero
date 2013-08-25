@@ -8,13 +8,40 @@
     If <message> is -, message lines are read from stdin.
 '''
 
+__all__ = ('ZLogger', 'zlogger')
+from socket import gethostname
+from zero import *
 
-def log_format(config, sender, level, msg):
-    from json import dumps
-    from time import strftime
-    from socket import gethostname
-    return dumps([sender, gethostname(), level, strftime(config['ts-format']), msg])
-                 
+class ZLogger(object):
+    def __init__(self, config, logq, sender, host):
+        self.logq = logq
+        self.sender = sender
+        self.host = host
+        for lvl, _ in config['levels']:
+            def logout(msg, lvl=lvl):
+                self.log(msg, lvl)
+            setattr(self, lvl, logout)
+    def log(self, msg, level):
+        self.logq.put(self.format(self.sender, level, msg, self.host))
+    @classmethod
+    def format(cls, sender, level, msg, host, ts_format='%Y-%m-%dT%H:%M:%S%Z'):
+        from json import dumps
+        from time import strftime
+        return dumps([sender, host, level, strftime(ts_format), msg])
+
+def zlogger(config, sender):
+    from Queue import Queue
+    from threading import Thread
+    logq = Queue()
+    slog = ZeroSetup('push', 'tcp://%(host)s:%(port)s' % config, iter(logq.get, '')).nonblocking()
+    def thread(slog=slog):
+        for t in zero(slog):
+            pass
+    t = Thread(target=thread)
+    t.daemon = True
+    t.start()
+    return ZLogger(config, logq, sender, gethostname())
+                     
 def main():
     from env import HERE
     from sys import argv, exit
