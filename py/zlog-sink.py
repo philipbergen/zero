@@ -58,6 +58,7 @@ def main():
     conf = HERE + '/log.json'
     if len(argv) > 1:
         conf = argv[1]
+    print 'Loading config from', conf
     with open(conf) as fin:
         conf = load(fin)['log']
     setup = ZeroSetup('pull', conf['port']).binding()
