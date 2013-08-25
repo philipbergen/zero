@@ -6,23 +6,25 @@
     <config> default is log.json
 '''
 
-import json
-from clint.textui import puts, colored
+from ansicolor import *
 
 class Logout(object):
-    def __init__(self, ts_format):
+    def __init__(self, conf):
         self.colwidth = [0] * 5
-        self.lvls = {'lol': colored.white, 'fyi': colored.green, 'wtf': colored.yellow, 'omg': colored.red, '?': colored.magenta}
-        self.ts_format = ts_format
+        self.lvls = {}
+        for lvl, col in conf['levels']:
+            self.lvls[lvl] = eval(col)
+        self.ts_format = conf['ts-format']
 
     def tty(self, logline):
         def wide(n, s):
             self.colwidth[n] = max(self.colwidth[n], len(s))
             return ('%-' + str(self.colwidth[n]) + 's') % s
 
+        from json import loads
         from time import strftime
         try:
-            sender, host, lvl, ts, msg = json.loads(logline)
+            sender, host, lvl, ts, msg = loads(logline)
         except (ValueError, TypeError) as e:
             lvl = host = sender = '?'
             ts = strftime(self.ts_format)
@@ -41,25 +43,31 @@ class Logout(object):
                 t += 80
             msg = iter(msg)
         col = self.lvls[lvl]
-        print col(wide(0, lvl)), wide(1, ts), col(wide(2, host)), colored.cyan(wide(3, sender)), msg.next()
+        print col(wide(0, lvl)), wide(1, ts), col(wide(2, host)), cya(wide(3, sender)), msg.next()
         for m in msg:
             print self.lvls[lvl](' ------>'), m
 
 def main():
+    from env import HERE
     from sys import argv
     from json import load
+    from os import environ
     from zlog import log_format
     from zero import zero, ZeroSetup
-    from os.path import dirname, exists
-    conf = dirname(__file__) + '/../log.json'
+    from os.path import exists
+    conf = HERE + '/log.json'
     if len(argv) > 1:
         conf = argv[1]
     with open(conf) as fin:
         conf = load(fin)['log']
-    setup = ZeroSetup('pull', str(conf['port'])).binding()
+    setup = ZeroSetup('pull', conf['port']).binding()
+    path = conf['file']
+    if path[0] != '/':
+        path = HERE + '/' + path
     print 'Logger started for', setup
-    with open(conf['file'], 'a', 1) as fout:
-        logout = Logout(conf.get('ts-format', '%Y-%m-%dT%H:%M:%S%Z'))
+    print 'Logging to', path
+    with open(path, 'a', 1) as fout:
+        logout = Logout(conf)
         try:
             for line in zero(setup):
                 fout.write(line)
