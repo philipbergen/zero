@@ -29,19 +29,27 @@ will be retrieved. Omit this value to subscribe to all messages.
 import sys
 import zmq
 
-__all__ = ('ZeroSetup', 'zero')
+__all__ = ('ZeroSetup', 'Zero', 'zero')
 
 class ZeroSetup(object):
     ''' Config and input to a zmq socket setup.
 
         Examples:
          * Setup for pull on port 8000 that gets response messages from stdin and prints some debugging info:
-            z = ZeroSetup.pull('8000', ZeroSetup.iter_stdin()).binding().debugging()
+            for msg in zero(ZeroSetup('pull', '8000').binding().debugging()):
+                print "Got mail:", msg
 
-         * Always reply 'ok' to all req on port 800:
-            z = ZeroSetup.rep('8000', itertools.repeat('ok')).binding().debugging()
+         * Always reply 'ok' to all req on port 8000:
+            for never in zero(ZeroSetup('rep', '8000', itertools.repeat('ok')).binding().debugging()):
+                pass
     
-         * Sub pub forwarder (Fan in sub@tcp://localhost:8000 to fan out pub@tcp://*:8001):
+         * Always reply 'ok' + msg to all req on port 8000:
+            z = Zero(ZeroSetup('rep', '8000').binding().debugging())
+            for msg, callback in z:
+                print "Got Mail:", msg
+                callback("ok " + msg)
+
+          * Sub pub forwarder (Fan in sub@tcp://localhost:8000 to fan out pub@tcp://*:8001):
             subscriber = zero(ZeroSetup('sub', '8000').binding())
             publisher = zero(ZeroSetup('pub', '8001', subscriber).binding())
             for n in publisher:
