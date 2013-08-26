@@ -5,8 +5,8 @@
 
 ''' Exports ansicolor functions.
     You want to probably use this as:
-        from ansicolor import *
-    print BLD(red('Hello')), yel('world!')
+        from ansicolor import blk, red, grn, yel, blu, mag, cya, wht, off, bld, dim, FG, BG
+    print BLD(red('Hello')), yel('world!', BG)
 '''
 
 _colors = 'blk red grn yel blu mag cya wht'.split()

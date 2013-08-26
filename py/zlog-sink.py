@@ -25,6 +25,7 @@ class Logout(object):
 
         from json import loads
         from time import strftime
+        from stacktrace import format_exc
         try:
             sender, host, lvl, ts, msg = loads(logline)
         except (ValueError, TypeError):

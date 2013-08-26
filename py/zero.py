@@ -213,7 +213,9 @@ class Zero(object):
             self.sock.connect(setup.socket)
         setup.debug('Created ZMQ socket %r', setup)
         self.naptime = 0.5
-
+        if self.setup.yields:
+            self.recv = self.sock.recv
+        
     def send(self, msg=None):
         from time import sleep
         if msg is None and self.setup.loop is not None:

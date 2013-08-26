@@ -14,6 +14,7 @@ from zero import ZeroSetup, Zero
 
 
 class ZLogger(object):
+    'ZMQ logging object. Caches host and sender. Transmits via a queue to the push Zero.'
     def __init__(self, config, logq, sender, host):
         self.logq = logq
         self.sender = sender
@@ -21,20 +22,26 @@ class ZLogger(object):
         for lvl, _ in config['levels']:
 
             def logout(msg, lvl=lvl):
+                'Local function object for dynamic log level functions such as fyi or wtf.'
                 self.log(msg, lvl)
             setattr(self, lvl, logout)
 
     def log(self, msg, level):
+        'Formats a message and puts it on the logging queue.'
         self.logq.put(self.format(self.sender, level, msg, self.host))
 
     @classmethod
     def format(cls, sender, level, msg, host=gethostname(), ts_format='%Y-%m-%dT%H:%M:%S%Z'):
+        'Returns a correctly formatted zlog json message.'
         from json import dumps
         from time import strftime
         return dumps([sender, host, level, strftime(ts_format), msg])
 
 
 def zlogger(config, sender):
+    ''' Convenience function for setting up a ZLogger and queue. Returns a ZLogger
+        object with .fyi, .wtf, .omg functions as specified in config['log']['levels'].
+    '''
     from Queue import Queue
     from threading import Thread
     logq = Queue()
@@ -50,6 +57,7 @@ def zlogger(config, sender):
 
 
 def main():
+    'For CLI use, see usage in __doc__.'
     from env import HERE
     from sys import argv, exit
     from json import load
