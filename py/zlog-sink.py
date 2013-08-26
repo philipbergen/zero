@@ -8,6 +8,7 @@
 
 from ansicolor import *
 
+
 class Logout(object):
     def __init__(self, conf):
         self.colwidth = [0] * 5
@@ -17,6 +18,7 @@ class Logout(object):
         self.ts_format = conf['ts-format']
 
     def tty(self, logline):
+
         def wide(n, s):
             self.colwidth[n] = max(self.colwidth[n], len(s))
             return ('%-' + str(self.colwidth[n]) + 's') % s
@@ -25,7 +27,7 @@ class Logout(object):
         from time import strftime
         try:
             sender, host, lvl, ts, msg = loads(logline)
-        except (ValueError, TypeError) as e:
+        except (ValueError, TypeError):
             print format_exc()
             lvl = host = sender = '?'
             ts = strftime(self.ts_format)
@@ -41,20 +43,19 @@ class Logout(object):
             i = 40
             while i < len(tmp):
                 msg.append(tmp[i:i+80])
-                t += 80
+                i += 80
             msg = iter(msg)
         col = self.lvls[lvl]
         print col(wide(0, lvl)), wide(1, ts), col(wide(2, host)), cya(wide(3, sender)), msg.next()
         for m in msg:
             print self.lvls[lvl](' ------>'), m
 
+
 def main():
     from env import HERE
     from sys import argv
     from json import load
-    from os import environ
-    from zero import zero, ZeroSetup
-    from os.path import exists
+    from zero import zauto, ZeroSetup
     conf = HERE + '/log.json'
     if len(argv) > 1:
         conf = argv[1]
@@ -70,7 +71,7 @@ def main():
     with open(path, 'a', 1) as fout:
         logout = Logout(conf)
         try:
-            for line in zero(setup):
+            for line in zauto(setup):
                 fout.write(line)
                 fout.write('\n')
                 logout.tty(line)
@@ -78,6 +79,7 @@ def main():
             print 'Logger quitting.'
             sock.close()
     print 'Logger stopped on', setup
+
 
 if __name__ == '__main__':
     main()
