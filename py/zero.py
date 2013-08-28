@@ -125,11 +125,13 @@ class ZeroSetup(object):
         pass
 
     def _debug_on(self, s, *args, **kwarg):
+        from ansicolor import blu
         if args:
             s = s % args
         if kwarg:
             s = s % kwarg
-        print '-->', s[:110]
+        for i in range(0, len(s), 95):
+            print '>', blu(s[i:i + 95])
 
     def binding(self, val=True):
         if val:
@@ -220,6 +222,9 @@ class Zero(object):
         from time import sleep
         if msg is None and self.setup.loop is not None:
             msg = self.setup.loop.next()
+        elif not isinstance(msg, str):
+            from json import dumps
+            msg = dumps(msg)
         self.setup.debug('Sending %s', msg[:100])
         sleep(self.naptime)  # TODO: Find out how to tell when it is connected
         self.naptime = 0

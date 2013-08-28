@@ -25,7 +25,7 @@ class Logout(object):
 
         from json import loads
         from time import strftime
-        from stacktrace import format_exc
+        from traceback import format_exc
         try:
             sender, host, lvl, ts, msg = loads(logline)
         except (ValueError, TypeError):
@@ -36,20 +36,18 @@ class Logout(object):
         if lvl not in self.lvls:
             lvl = '?'
         try:
-            msg = iter(msg.split('\n'))
+            lines = iter(msg.split('\n'))
         except AttributeError:
-            tmp = repr(msg)
-            msg = []
-            msg.append(tmp[:40])
-            i = 40
-            while i < len(tmp):
-                msg.append(tmp[i:i+80])
-                i += 80
-            msg = iter(msg)
+            lines = [repr(msg)]
+        msg = []
+        for tmp in lines:
+            for i in range(0, len(tmp), 70):
+                msg.append(tmp[i:i+70])
+        msg = iter(msg)
         col = self.lvls[lvl]
-        print col(wide(0, lvl)), wide(1, ts), col(wide(2, host)), cya(wide(3, sender)), msg.next()
+        print wide(1, ts), col(wide(0, lvl)), col(wide(2, host))
         for m in msg:
-            print self.lvls[lvl](' ------>'), m
+            print self.lvls[lvl](' ------>'), cya(sender), m
 
 
 def main():
