@@ -29,13 +29,15 @@ subscriptions will be retrieved. Omit this value to subscribe to all messages.
 '''
 import sys
 import zmq
+import json
 
 __all__ = ('ZeroSetup', 'Zero', 'zauto')
 
 
 class ZeroSetup(object):
+    'Simplifies 0MQ use and setup. Use with Zero, see below.'
     def __init__(self, method, point):
-        ''' Creates a setup that may be proactive (method is pub/push/req) or reactive 
+        ''' Creates a setup that may be proactive (method is pub/push/req) or reactive
             (method is sub/pull/rep).
             point -- a port number or a zmq url that is valid for the method.
         '''
@@ -70,10 +72,11 @@ class ZeroSetup(object):
                     print msg
         '''
         from docopt import docopt
+        from itertools import count
         args = docopt(__doc__, argv)
         method = [meth for meth in ['push', 'req', 'rep', 'pub', 'pull', 'sub']
                   if args[meth]][0]
-        
+
         msgloop = None
         if ZeroSetup.method_transmits(method):
             if not args['-']:
@@ -81,7 +84,7 @@ class ZeroSetup(object):
         elif args['-n'] != 'inf':
             msgloop = range(int(args['-n']))
         else:
-            msgloop = itertools.count()
+            msgloop = count()
         setup = ZeroSetup(method, args['<socket>'], msgloop)
         setup.binding(args['--bind']).debugging(args['--dbg'])
         if args['<subscription>']:
@@ -97,18 +100,17 @@ class ZeroSetup(object):
             res.append('.debugging()')
         if not self.block:
             res.append('.nonblocking()')
-        if not self.json:
-            res.append('.raw()')
         if list(self.subscriptions):
-            res.append('.subscribing(%s)' % ''.join(self.subscriptions()))
-        if hasattr(self, 'rpc'):
-            res.append('.activated(%r)' % self.rpc)
+            res.append('.subscribing(%s)' % ''.join(self.subscriptions))
+        return ''.join(res)
     __str__ = __repr__
 
     def _debug_off(self, s, *args, **kwarg):
+        'Does nothing. For debug == False.'
         pass
 
     def _debug_on(self, s, *args, **kwarg):
+        'Interpolates s with args/kwarg and prints on stdout, when debug == True.'
         from ansicolor import blu
         if args:
             s = s % args
@@ -118,32 +120,28 @@ class ZeroSetup(object):
             print '>', blu(s[i:i + 95])
 
     def binding(self, val=True):
-        if val:
-            self._options.append('(bind)')
+        'Switches from socket.connect to socket.bind.'
         self.bind = val
         return self
 
     def subscribing(self, heads):
+        'Sets the subscription strings for SUB sockets.'
         self._filters = list(iter(heads))
         return self
 
     def debugging(self, val=True):
+        'Turns debug output on/off.'
         self.debug = self._debug_on if val else self._debug_off
         return self
 
     def nonblocking(self, val=False):
+        'Switches blocking sends, calls.'
         self.block = not val
         return self
 
-    def raw(self, val=False):
-        self.json = not val
-        return self
-
-    def activated(self, zerorpc):
-        self.rpc = zerorpc
-
     @property
     def subscriptions(self):
+        'Yields subscription topics.'
         if self.method == 'sub':
             for res in getattr(self, '_filters', ['']):
                 self.debug('Subscription %r', res)
@@ -151,6 +149,7 @@ class ZeroSetup(object):
 
     @property
     def point(self):
+        'Returns the ZMQ socket string.'
         if self._point[:1] == ':':
             self._point = self._point[1:]
         try:
@@ -162,24 +161,25 @@ class ZeroSetup(object):
             return self._point
 
     @classmethod
-    def method_transmits(cls, method, tx='push pub req rep'.split()):
-        return method in tx
+    def method_transmits(cls, method):
+        'True for sending ZMQ methods.'
+        return method in (zmq.PUSH, zmq.PUB, zmq.REQ, zmq.REP)
 
     @property
     def transmits(self):
+        'True if the method member is a sending kind.'
         return self.method_transmits(self.method)
 
     @property
     def replies(self):
-        return self.method == 'rep'
+        'True if method is zmq.REP'
+        return self.method == zmq.REP
 
     @property
-    def yields(self, tx='pull sub req rep'.split()):
-        return self.method in tx
+    def yields(self):
+        'True if method receives objects.'
+        return self.method in (zmq.PULL, zmq.SUB, zmq.REQ, zmq.REP)
 
-    @property
-    def active(self):
-        return hasattr(self, 'rpc')
 
 class ZeroRPC(object):
     ''' Inherit and implement your own methods on from this.
@@ -189,17 +189,19 @@ class ZeroRPC(object):
     '''
     def __call__(self, obj):
         'Calls the method from obj (always of the form [<method name>, {<kwargs>}]).'
+        
         if not hasattr(self, obj[0]):
             return self._unsupported(obj[0], **obj[1])
         return getattr(self, obj[0])(**obj[1])
 
     def _unsupported(self, func, **kwargs):
-        return ['UnsupportedFunc', func, kwargs] 
+        'Catch-all method for when the object received does not fit.'
+        return ['UnsupportedFunc', func, kwargs]
 
-           
+
 class Zero(object):
     ''' ZMQ wrapper object that gets its setup from ZeroSetup.
-        
+
         # To PUB a number of objects (push is the same, except 'push' method):
 
         z = Zero(ZeroSetup('pub', '8000'))
@@ -226,7 +228,7 @@ class Zero(object):
 
     def __init__(self, setup):
         self.setup = setup
-        if not hasattr(setup, ctx):
+        if not hasattr(setup, 'ctx'):
             setup.ctx = zmq.Context()
         self.sock = setup.ctx.socket(setup.method)
         if setup.linger:
@@ -239,28 +241,42 @@ class Zero(object):
             self.sock.connect(setup.point)
         setup.debug('Created ZMQ socket %r', self)
         self.naptime = 0.5
-        if not setup.json:
-            self._decode = lambda x:x
-            self._encode = self._decode
+        self.rpc = None
+
+    def marshals(self, encode=json.dumps, decode=json.loads):
+        ''' Set automatic marshalling functions. Example for raw input:
+            zero(setup).marshals(lambda x: x)
+        '''
+        self._encode = encode
+        self._decode = decode
+        return self
+    _encode = json.dumps
+    _decode = json.loads
+
+    def activated(self, zerorpc):
+        'Sets an ZeroRPC object that gets called when messages are received.'
+        self.rpc = zerorpc
+        return self
 
     def __repr__(self):
-        return 'Zero(%r)' % self.setup
+        res = ['Zero(%r)' % self.setup]
+        if self._encode != json.dumps or self._decode != json.loads:
+            res.append('.marshals(%r, %r)' % (self._encode, self._decode))
+        if self.rpc is not None:
+            res.append('.activated(%r)' % self.rpc)
+        return ''.join(res)
     __str__ = __repr__
-
-    from json import loads, dumps
-    _decode = loads
-    _encode = dumps
 
     def __iter__(self):
         return self
 
-    def next():
+    def next(self):
         ''' Blocks regardless of self.setup.block. If method is rep,
             must send reply before going to next().
         '''
         res = self._decode(self.sock.recv())
-        if self.setup.active:
-            return self.setup.rpc(res)
+        if self.active:
+            return self.rpc(res)
         return res
 
     def __call__(self, obj):
@@ -281,6 +297,10 @@ class Zero(object):
         if self.setup.blocking:
             tracker.wait()
 
+    @property
+    def active(self):
+        return hasattr(self, 'rpc')
+
 
 def zauto(setup, loops):
     'Keep listening and sending til the loop ends.'
@@ -300,10 +320,12 @@ def zauto(setup, loops):
                 print msg
     except KeyboardInterrupt:
         setup.debug('Quit by user')
+    except StopIteration:
+        setup.debug('Loop ended')
 
 
 def main():
-   for msg in zauto(*ZeroSetup.argv()):
+    for msg in zauto(*ZeroSetup.argv()):
         sys.stdout.write(msg + '\n')
         sys.stdout.flush()
 
