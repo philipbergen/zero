@@ -105,12 +105,19 @@ class ZeroSetup(object):
 
         msgloop = None
         if setup.transmits:
-            if not args['-']:
+            if args['-']:
+                def liner():
+                    res = sys.stdin.readline()
+                    if not res:
+                        return None
+                    return res.rstrip()
+                msgloop = iter(liner, None)
+            else:
                 msgloop = args['<message>']
-        elif args['-n'] != 'inf':
-            msgloop = range(int(args['-n']))
-        else:
+        elif args['-n'] == 'inf':
             msgloop = count()
+        else:
+            msgloop = xrange(int(args['-n']))
         return setup, msgloop
 
     def __repr__(self):
@@ -399,7 +406,7 @@ class Zero(object):
         from time import sleep
         from ansicolor import red
         msg = self._encode(obj)
-        self.setup.debug('Sending %r to %s', msg, self.setup.point)
+        self.setup.debug('Sending %s to %s', msg, self.setup.point)
         sleep(self.naptime)  # TODO: Find out how to tell when it is connected
         self.naptime = 0
         tracker = self.sock.send(msg, copy=False, track=True)
@@ -466,8 +473,13 @@ def main():
 
     setup, loop = ZeroSetup.argv()
     zero = Zero(setup)
+    # Pass data raw and unmodified through from stdin to stdout
+    zero.marshals(lambda x:x, lambda x:x)
+    if not setup.args['-']:
+        # Except treat arguments as strings
+        zero.marshals(json.dumps)
     for msg in zauto(zero, loop):
-        sys.stdout.write(msg + '\n')
+        sys.stdout.write(json.dumps(msg) + '\n')
         sys.stdout.flush()
     if setup.args['--wait']:
         raw_input('Press enter when done.')
