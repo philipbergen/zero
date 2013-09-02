@@ -66,6 +66,7 @@ class ZeroSetup(object):
         self._point = point
         self.linger = 1000
         self.block = True
+        self.output = sys.stderr
 
     @classmethod
     def argv(cls, argv=sys.argv[1:]):
@@ -76,7 +77,6 @@ class ZeroSetup(object):
             zauto(setup, loops)
 
             >>> setup, loop = ZeroSetup.argv('--dbg push 8000 -b alpha beta charlie'.split())
-            > \x1b[34mZeroSetup('push', '8000').binding(True).debugging()\x1b[0m
             >>> setup
             ZeroSetup('push', '8000').binding(True).debugging()
             >>> ' '.join(loop)
@@ -125,19 +125,34 @@ class ZeroSetup(object):
         return ''.join(res)
     __str__ = __repr__
 
-    def _debug_off(self, s, *args, **kwarg):
-        'Does nothing. For debug == False.'
-        pass
-
-    def _debug_on(self, s, *args, **kwarg):
-        'Interpolates s with args/kwarg and prints on stdout, when debug == True.'
-        from ansicolor import blu
+    def _print(self, pre, col, s, *args, **kwarg):
+        'Interpolates s with args/kwarg and prints on stderr, when debug == True.'
         if args:
             s = s % args
         if kwarg:
             s = s % kwarg
         for i in range(0, len(s), 95):
-            print '>', blu(s[i:i + 95])
+            self.output.write(pre + col(s[i:i + 95]) + '\n')
+        self.output.flush()
+
+    def _debug_off(self, s, *args, **kwarg):
+        'Does nothing. For debug == False.'
+        pass
+
+    def _debug_on(self, s, *args, **kwarg):
+        'Interpolates s with args/kwarg and prints on stderr, when debug == True.'
+        from ansicolor import blu
+        self._print('>   ', blu, s, *args, **kwarg)
+
+    def warn(self, s, *args, **kwarg):
+        'Interpolates s with args/kwarg and prints on stderr, when debug == True.'
+        from ansicolor import yel
+        self._print('>>  ', yel, s, *args, **kwarg)
+
+    def err(self, s, *args, **kwarg):
+        'Interpolates s with args/kwarg and prints on stderr, when debug == True.'
+        from ansicolor import red, bld
+        self._print('>>> ', lambda x: bld(red(x)), s, *args, **kwarg)
 
     def binding(self, val=True):
         ''' Switches from socket.connect to socket.bind.
@@ -225,25 +240,14 @@ class ZeroRPC(object):
     ''' Inherit and implement your own methods on from this.
         Then supply to ZeroSetup:
 
-        ZeroSetup('pull', '8000').activated(ZeroRPC())
-
-
-        >>> class Z(ZeroRPC):
-        ...     def hi(self):
-        ...         return "hello"
-        ...     def sqr(self, x):
-        ...         return x*x
-        >>> def lstn():
-        ...     zauto(ZeroSetup.argv('rep 8800 hi'.split())).activated(Z())
-        >>> 
-        
+        Zero(ZeroSetup('pull', 8000)).activated(ZeroRPC())
     '''
     def __call__(self, obj):
         'Calls the method from obj (always of the form [<method name>, {<kwargs>}]).'
         if obj[0][:1] == '_':
             raise Exception('Method not available')
         if len(obj) == 1:
-            obj = [obj[0], []]
+            obj = [obj[0], {}]
         if not hasattr(self, obj[0]):
             return self._unsupported(obj[0], **obj[1])
         return getattr(self, obj[0])(**obj[1])
@@ -252,6 +256,41 @@ class ZeroRPC(object):
         'Catch-all method for when the object received does not fit.'
         return ['UnsupportedFunc', func, kwargs]
 
+    @classmethod
+    def _test_rpc(cls):
+        ''' For doctest
+            >>> ZeroRPC._test_rpc()
+            REP u'hello'
+            REP 100
+        '''
+        class Z(ZeroRPC):
+            def hi(self):
+                return "hello"
+            def sqr(self, x):
+                return x*x
+        def lstn():
+            zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
+            n = 2
+            for msg in zero:
+                zero(msg)
+                n -= 1
+                if not n:
+                    break
+            zero.sock.close()
+        
+        from threading import Thread
+        t = Thread(name='TestRPC', target=lstn)
+        t.daemon = True
+        t.start()
+
+        zero = Zero(ZeroSetup('req', 8000))
+        msg = ['hi']
+        rep = zero(msg)
+        print 'REP %r' % rep
+        msg = ['sqr', {'x': 10}]
+        rep = zero(msg)
+        print 'REP %r' % rep
+        
 
 class Zero(object):
     ''' ZMQ wrapper object that gets its setup from ZeroSetup.
@@ -296,6 +335,9 @@ class Zero(object):
         self.marshals()
         setup.debug('Created ZMQ socket %r', self)
         self.naptime = 0.5
+
+    def __del__(self):
+        self.sock.close()
 
     def marshals(self, encode=json.dumps, decode=json.loads):
         ''' Set automatic marshalling functions. Example for raw input:
@@ -352,9 +394,10 @@ class Zero(object):
         self.send(obj)
         if self.setup.method == zmq.REQ and self.setup.block:
             return self.next()
-
+        
     def send(self, obj):
         from time import sleep
+        from ansicolor import red
         msg = self._encode(obj)
         self.setup.debug('Sending %r to %s', msg, self.setup.point)
         sleep(self.naptime)  # TODO: Find out how to tell when it is connected
@@ -368,55 +411,62 @@ class Zero(object):
         return hasattr(self, 'rpc')
 
 
-def zauto(setup, loops):
+def zauto(zero, loops):
     'Keep listening and sending until the loop ends. All received objects are yielded.'
+    from itertools import izip
     try:
-        z = Zero(setup)
-        if setup.replies:
-            loops = iter(loops)
-            for msg in z:
+        if zero.setup.replies:
+            for rep, msg in izip(loops, zero):
                 yield msg
-                z(loops.next())
-        elif setup.transmits:
+                zero(rep)
+        elif zero.setup.transmits:
             for msg in loops:
-                res = z(msg)
-                if setup.yields:
+                res = zero(msg)
+                if zero.setup.yields:
                     yield res
         else:
-            from itertools import izip
-            for _, msg in izip(loops, z):
+            for _, msg in izip(loops, zero):
                 yield msg
     except KeyboardInterrupt:
-        setup.debug('Quit by user')
+        zero.setup.debug('Quit by user')
     except StopIteration:
-        setup.debug('Loop ended')
+        zero.setup.debug('Loop ended')
+    finally:
+        zero.setup.debug('Closing: %r', zero)
+        zero.sock.close()
+        
 
-
-def zbg(setup, loop, callback):
+def zbg(zero, loop, callback):
     ''' Use to daemonize zauto in a background thread.
         >>> import Queue
         >>> q = Queue.Queue()
-        >>> t = zbg(*ZeroSetup.argv('rep 8000 hello'), callback=q.put)
-        >>> list(zauto(*ZeroSetup.argv('req 8000 hi')))
+        >>> setup, loop = ZeroSetup.argv('rep 8000 hello'.split())
+        >>> zero = Zero(setup)
+        >>> t = zbg(zero, loop, q.put)
+        >>> setup, loop = ZeroSetup.argv('req 8000 hi'.split())
+        >>> zero = Zero(setup)
+        >>> list(zauto(zero, loop))
         [u'hello']
+        >>> t.join()
     '''
-    def tloop(setup, loop, callback):
-        for obj in zauto(setup, loop):
+    def tloop(zero, loop, callback):
+        for obj in zauto(zero, loop):
             callback(obj)
     from threading import Thread
-    t = Thread(name='zbg %r' % setup, target=tloop, args=(setup, loop, callback))
+    t = Thread(name='zbg %r' % zero, target=tloop, args=(zero, loop, callback))
     t.daemon = True
     t.start()
     return t
 
-    
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == 'test':
         import doctest
         return doctest.testmod()
 
     setup, loop = ZeroSetup.argv()
-    for msg in zauto(setup, loop):
+    zero = Zero(setup)
+    for msg in zauto(zero, loop):
         sys.stdout.write(msg + '\n')
         sys.stdout.flush()
     if setup.args['--wait']:
