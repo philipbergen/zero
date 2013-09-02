@@ -7,15 +7,16 @@
 ''' Zero MQ command line interface.
 sub push req: connect
 Usage:
-    zero [--dbg] (pub|rep) <socket> [-c] (-|<message> [<message>...])
-    zero [--dbg] (push|req) <socket> [-b] (-|<message> [<message>...])
-    zero [--dbg] pull <socket> [-c] [-n MESSAGES]
-    zero [--dbg] sub <socket> [-b] [<subscription>...] [-n MESSAGES]
+    zero [--dbg] [--wait] (pub|rep) <socket> [-c] (-|<message> [<message>...])
+    zero [--dbg] [--wait] (push|req) <socket> [-b] (-|<message> [<message>...])
+    zero [--dbg] [--wait] pull <socket> [-c] [-n MESSAGES]
+    zero [--dbg] [--wait] sub <socket> [-b] [<subscription>...] [-n MESSAGES]
     zero test [-v]
 
 Options:
     -b, --bind      Use bind instead of connect
     -c, --connect   Use connect instead of bind
+    --wait          Waits for user input at the end of the program, before quitting
     -n MESSAGES     Number of messages before exiting [default: inf]
     --dbg           Enables debug output
 
@@ -99,6 +100,7 @@ class ZeroSetup(object):
             setup.binding(False)
         if args['<subscription>']:
             setup.subscribing(args['<subscription>'])
+        setup.args = args
         setup.debug('%r', setup)
 
         msgloop = None
@@ -338,6 +340,7 @@ class Zero(object):
             must send reply before going to next().
         '''
         res = self._decode(self.sock.recv())
+        self.setup.debug('Received %r from %s', res, self.setup.point)
         if self.active:
             return self.rpc(res)
         return res
@@ -353,7 +356,7 @@ class Zero(object):
     def send(self, obj):
         from time import sleep
         msg = self._encode(obj)
-        self.setup.debug('Sending %s', msg[:100])
+        self.setup.debug('Sending %r to %s', msg, self.setup.point)
         sleep(self.naptime)  # TODO: Find out how to tell when it is connected
         self.naptime = 0
         tracker = self.sock.send(msg, copy=False, track=True)
@@ -380,7 +383,8 @@ def zauto(setup, loops):
                 if setup.yields:
                     yield res
         else:
-            for _, msg in zip(loops, z):
+            from itertools import izip
+            for _, msg in izip(loops, z):
                 yield msg
     except KeyboardInterrupt:
         setup.debug('Quit by user')
@@ -410,11 +414,13 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == 'test':
         import doctest
         return doctest.testmod()
-        
-    for msg in zauto(*ZeroSetup.argv()):
+
+    setup, loop = ZeroSetup.argv()
+    for msg in zauto(setup, loop):
         sys.stdout.write(msg + '\n')
         sys.stdout.flush()
-
+    if setup.args['--wait']:
+        raw_input('Press enter when done.')
 
 if __name__ == '__main__':
     main()
