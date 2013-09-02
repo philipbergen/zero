@@ -80,9 +80,9 @@ def main():
     else:
         messages = iter(args)
     messages = imap(lambda x: ZLogger.format(sender, level, x), messages)
-    z = Zero(ZeroSetup('push', conf['port'], messages))
-    for msg in z:
-        pass
+    z = Zero(ZeroSetup('push', conf['port']))
+    for msg in messages:
+        z(msg)
 
 
 if __name__ == '__main__':

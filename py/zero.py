@@ -106,12 +106,7 @@ class ZeroSetup(object):
         msgloop = None
         if setup.transmits:
             if args['-']:
-                def liner():
-                    res = sys.stdin.readline()
-                    if not res:
-                        return None
-                    return res.rstrip()
-                msgloop = iter(liner, None)
+                msgloop = ZeroSetup.iter_stdin
             else:
                 msgloop = args['<message>']
         elif args['-n'] == 'inf':
@@ -119,6 +114,16 @@ class ZeroSetup(object):
         else:
             msgloop = xrange(int(args['-n']))
         return setup, msgloop
+
+    @classmethod
+    def iter_stdin(self):
+        'Reads a line from stdin, stripping right side white space. Returns None when stdin is closed.'
+        def liner():
+            res = sys.stdin.readline()
+            if not res:
+                return None
+            return res.rstrip()
+        return iter(ZeroSetup.iter_stdin, None)
 
     def __repr__(self):
         res = ['ZeroSetup(%r, %r)' % (self._method, self._point)]

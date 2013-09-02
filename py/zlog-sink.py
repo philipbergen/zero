@@ -3,7 +3,7 @@
 ''' USAGE:
       zlog-sink [<config>]
 
-    <config> default is log.json
+    <config>  Path to configuration file [default: log.json]
 '''
 
 from ansicolor import *
@@ -54,14 +54,14 @@ def main():
     from env import HERE
     from sys import argv
     from json import load
-    from zero import zauto, ZeroSetup
+    from zero import Zero, ZeroSetup
     conf = HERE + '/log.json'
     if len(argv) > 1:
         conf = argv[1]
     print 'Loading config from', conf
     with open(conf) as fin:
         conf = load(fin)['log']
-    setup = ZeroSetup('pull', conf['port']).binding()
+    setup = ZeroSetup('pull', conf['port'])
     path = conf['file']
     if path[0] != '/':
         path = HERE + '/' + path
@@ -70,13 +70,12 @@ def main():
     with open(path, 'a', 1) as fout:
         logout = Logout(conf)
         try:
-            for line in zauto(setup):
+            for line in Zero(setup):
                 fout.write(line)
                 fout.write('\n')
                 logout.tty(line)
         except KeyboardInterrupt:
             print 'Logger quitting.'
-            sock.close()
     print 'Logger stopped on', setup
 
 
