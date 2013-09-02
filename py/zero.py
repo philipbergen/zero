@@ -106,7 +106,7 @@ class ZeroSetup(object):
         msgloop = None
         if setup.transmits:
             if args['-']:
-                msgloop = ZeroSetup.iter_stdin
+                msgloop = ZeroSetup.iter_stdin()
             else:
                 msgloop = args['<message>']
         elif args['-n'] == 'inf':
@@ -123,7 +123,7 @@ class ZeroSetup(object):
             if not res:
                 return None
             return res.rstrip()
-        return iter(ZeroSetup.iter_stdin, None)
+        return iter(liner, None)
 
     def __repr__(self):
         res = ['ZeroSetup(%r, %r)' % (self._method, self._point)]
