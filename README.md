@@ -189,7 +189,7 @@ for msg in [1, 2, "hello"]:
 Remote Procedure Call. Name the procedure and supply a dictionary of
 arguments. Works with `rep`, `pull` and even `sub`.
 
-**Note: ** It is quite useful and possible to activate a `pull`
+***Note:*** It is quite useful and possible to activate a `pull`
 server. It can't reply, but it can act on incoming orders.
 
 You will need to implement your RPC server. It is simple, just extend
