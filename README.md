@@ -95,8 +95,8 @@ for more information. All examples assume `from zero import *`.
 
 ### Push-pull fan-in
 
-Useful for workers feeding status messages to a central publisher that
-has many subscribers listening in.
+Useful for workers feeding status messages or objects to a persistence.
+E.g. logfile writer.
 
 ```python
 # The pull (bind) server
@@ -113,10 +113,31 @@ for msg in ['alpha', 'beta', 'gamma']:
     zero(msg)
 ```
 
-### Pub-sub
+### Push-pull fan-out
 
-Fan-out pub-sub. The most common for feeding a large number of
-listeners a stream of messages.
+Useful for distributing work from a server to multiple workers. Combines
+well with RPC, see below.
+
+```python
+# The push (bind) server
+zero = Zero(ZeroSetup('push', 8000).binding().debugging())
+for work in range(1000):
+    # Insert a sleep here for testing
+    zero(work)
+``` 
+
+```python
+# The pull (connect) client, each client gets a message from the push 
+# in round robin fashion.
+zero = Zero(ZeroSetup('push', 8000).binding(False))
+for msg in zero:
+    print "Doing work %s" % msg
+```
+
+### Pub-sub fan-out
+
+The most common for feeding a large number of listeners a stream of
+messages.
 
 ```python
 # The pub (bind) server
@@ -179,9 +200,9 @@ Then create a zero and activate it with an RPC object.
 ```python
 class RPCDemo(ZeroRPC):
     def ping(self):
-	return "pong"
+        return "pong"
     def greet(self, name):
-	return "hello %s" % name
+        return "hello %s" % name
 
 # The rep (bind) server, activated with RPCDemo
 zero = Zero(ZeroSetup('rep', 8000).activated(RPCDemo())
