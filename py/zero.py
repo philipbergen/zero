@@ -117,7 +117,9 @@ class ZeroSetup(object):
 
     @classmethod
     def iter_stdin(self):
-        'Reads a line from stdin, stripping right side white space. Returns None when stdin is closed.'
+        ''' Reads a line from stdin, stripping right side white space. Returns None when
+            stdin is closed.
+        '''
         def liner():
             res = sys.stdin.readline()
             if not res:
@@ -278,8 +280,10 @@ class ZeroRPC(object):
         class Z(ZeroRPC):
             def hi(self):
                 return "hello"
+
             def sqr(self, x):
                 return x*x
+
         def lstn():
             zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
             n = 2
@@ -289,7 +293,7 @@ class ZeroRPC(object):
                 if not n:
                     break
             zero.sock.close()
-        
+
         from threading import Thread
         t = Thread(name='TestRPC', target=lstn)
         t.daemon = True
@@ -302,7 +306,7 @@ class ZeroRPC(object):
         msg = ['sqr', {'x': 10}]
         rep = zero(msg)
         print 'REP %r' % rep
-        
+
 
 class Zero(object):
     ''' ZMQ wrapper object that gets its setup from ZeroSetup.
@@ -406,10 +410,9 @@ class Zero(object):
         self.send(obj)
         if self.setup.method == zmq.REQ and self.setup.block:
             return self.next()
-        
+
     def send(self, obj):
         from time import sleep
-        from ansicolor import red
         msg = self._encode(obj)
         self.setup.debug('Sending %s to %s', msg, self.setup.point)
         sleep(self.naptime)  # TODO: Find out how to tell when it is connected
@@ -446,7 +449,7 @@ def zauto(zero, loops):
     finally:
         zero.setup.debug('Closing: %r', zero)
         zero.sock.close()
-        
+
 
 def zbg(zero, loop, callback):
     ''' Use to daemonize zauto in a background thread.
@@ -479,7 +482,7 @@ def main():
     setup, loop = ZeroSetup.argv()
     zero = Zero(setup)
     # Pass data raw and unmodified through from stdin to stdout
-    zero.marshals(lambda x:x, lambda x:x)
+    zero.marshals(lambda x: x, lambda x: x)
     if not setup.args['-']:
         # Except treat arguments as strings
         zero.marshals(json.dumps)

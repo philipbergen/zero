@@ -19,20 +19,23 @@ BG = 40  # Add to a color for background
 
 
 def bld(s):
+    'Wraps s in ANSI codes for bold'
     return _CSI % 1 + s + _OFF
 
 
 def dim(s):
+    'Wraps s in ANSI codes for dim'
     return _CSI % 2 + s + _OFF
 
 
 def off(fg=FG):
+    'Returns ANSI codes for turning off all color and style'
     return _CSI % (fg + 9)
 
 
 for col_n, col in enumerate(_colors):
-
     def colorwrap(s='', fg=FG, col_n=col_n):
+        'Returns s wrapped in ANSI color codes for each available color'
         if not s:
             return _CSI % (fg + col_n)
         return _CSI % (fg + col_n) + s + _OFF
