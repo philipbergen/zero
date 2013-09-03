@@ -82,7 +82,7 @@ create_env () {
 echo "*** INFO: Setting environment "
 
 export PYTHONPATH="/usr/local/lib/python2.7/site-packages:/Library/Python/2.7/site-packages:$here/py:$here/bin:$here"
-export PATH="\$HOME/Library/Python/2.7/bin:$here/bin:\$PATH"
+export PATH="/usr/local/share/python:\$HOME/Library/Python/2.7/bin:$here/bin:\$PATH"
 
 launchctl limit maxfiles 16384
 EOF
