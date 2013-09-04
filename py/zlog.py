@@ -20,7 +20,6 @@ class ZLogger(object):
         self.sender = sender
         self.host = host
         for lvl, _ in config['levels']:
-
             def logout(msg, lvl=lvl):
                 'Local function object for dynamic log level functions such as fyi or wtf.'
                 self.log(msg, lvl)
@@ -45,11 +44,11 @@ def zlogger(config, sender):
     from Queue import Queue
     from threading import Thread
     logq = Queue()
-    slog = ZeroSetup('push', 'tcp://%(host)s:%(port)s' % config, iter(logq.get, '')).nonblocking()
+    slog = Zero(ZeroSetup('push', 'tcp://%(host)s:%(port)s' % config).nonblocking())
 
     def thread(slog=slog):
-        for t in Zero(slog):
-            pass
+        for t in logq:
+            slog(t)
     t = Thread(target=thread)
     t.daemon = True
     t.start()

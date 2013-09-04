@@ -143,7 +143,7 @@ class ZeroSetup(object):
     def _print(self, pre, col, s, *args, **kwarg):
         ''' Interpolates s with args/kwarg and prints on stderr, when debug == True.
             This is currently called by debug only if debug == True, but warn and err
-            call it unconditionally (though they're not used yet).
+            call it unconditionally (though they are not used yet).
         '''
         from textwrap import wrap
         if args:
@@ -261,15 +261,24 @@ class ZeroRPC(object):
 
         Zero(ZeroSetup('pull', 8000)).activated(ZeroRPC())
     '''
+    def __init__(self, zlg=None):
+        self.zlg = zlg
+
     def __call__(self, obj):
         'Calls the method from obj (always of the form [<method name>, {<kwargs>}]).'
-        if obj[0][:1] == '_':
-            raise Exception('Method not available')
-        if len(obj) == 1:
-            obj = [obj[0], {}]
-        if not hasattr(self, obj[0]):
-            return self._unsupported(obj[0], **obj[1])
-        return getattr(self, obj[0])(**obj[1])
+        from traceback import format_exc
+        try:
+            if obj[0][:1] == '_':
+                raise Exception('Method not available')
+            if len(obj) == 1:
+                obj = [obj[0], {}]
+            if not hasattr(self, obj[0]):
+                return self._unsupported(obj[0], **obj[1])
+            return getattr(self, obj[0])(**obj[1])
+        except:
+            if self.zlg:
+                self.zlg.omg('Exception: ' + format_exc())
+            return ['ERROR', format_exc()]
 
     def _unsupported(self, func, **kwargs):
         'Catch-all method for when the object received does not fit.'
@@ -380,6 +389,7 @@ class Zero(object):
         if not callable(zerorpc):
             raise ValueError('Objects used for activation must be callable', self, zerorpc)
         self.rpc = zerorpc
+        self.rpc.ctx = self.setup.ctx
         return self
 
     def __repr__(self):
