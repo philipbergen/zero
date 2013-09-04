@@ -36,7 +36,7 @@ import zmq
 import json
 from itertools import izip
 
-__all__ = ('ZeroSetup', 'Zero', 'ZeroRPC', 'zauto')
+__all__ = ('ZeroSetup', 'Zero', 'ZeroRPC')
 
 
 class ZeroSetup(object):
