@@ -25,7 +25,7 @@ be localhost. Zmq sockets are things like zmq://*:<port> or
 zmq://<hostname>:<port>.
 
 <message> is assumed to be a json formatted message. If multiple <message>
-is given each are sent individually. If <message> is -, messages are read
+are given each are sent individually. If <message> is -, messages are read
 from stdin, the assumption is that each message is contained in a single line.
 
 <subscription> is any string, only messages that start with any of the
@@ -34,6 +34,7 @@ subscriptions will be retrieved. Omit this value to subscribe to all messages.
 import sys
 import zmq
 import json
+from itertools import izip
 
 __all__ = ('ZeroSetup', 'Zero', 'ZeroRPC', 'zauto')
 
@@ -61,15 +62,15 @@ class ZeroSetup(object):
         '''
         self._method = method
         self.method = getattr(zmq, method.upper())
-        self.bind = not self.method in (zmq.SUB, zmq.PUSH, zmq.REQ)
+        self.bind = self.method not in (zmq.SUB, zmq.PUSH, zmq.REQ)
         self.debugging(False)
         self._point = point
         self.linger = 1000
         self.block = True
         self.output = sys.stderr
 
-    @classmethod
-    def argv(cls, argv=sys.argv[1:]):
+    @staticmethod
+    def argv(argv=sys.argv[1:]):
         ''' Interprets argv (sys.argv[1:]) in accordance with the doc for this
             file. Returns a ZeroSetup and an iterator.
 
@@ -90,7 +91,7 @@ class ZeroSetup(object):
         from docopt import docopt
         from itertools import count
         args = docopt(__doc__, argv)
-        method = [meth for meth in ['push', 'req', 'rep', 'pub', 'pull', 'sub']
+        method = [meth for meth in ('push', 'req', 'rep', 'pub', 'pull', 'sub')
                   if args[meth]][0]
 
         setup = ZeroSetup(method, args['<socket>']).debugging(args['--dbg'])
@@ -115,8 +116,8 @@ class ZeroSetup(object):
             msgloop = xrange(int(args['-n']))
         return setup, msgloop
 
-    @classmethod
-    def iter_stdin(self):
+    @staticmethod
+    def iter_stdin():
         ''' Reads a line from stdin, stripping right side white space. Returns None when
             stdin is closed.
         '''
@@ -140,13 +141,17 @@ class ZeroSetup(object):
     __str__ = __repr__
 
     def _print(self, pre, col, s, *args, **kwarg):
-        'Interpolates s with args/kwarg and prints on stderr, when debug == True.'
+        ''' Interpolates s with args/kwarg and prints on stderr, when debug == True.
+            This is currently called by debug only if debug == True, but warn and err
+            call it unconditionally (though they're not used yet).
+        '''
+        from textwrap import wrap
         if args:
             s = s % args
         if kwarg:
             s = s % kwarg
-        for i in range(0, len(s), 95):
-            self.output.write(pre + col(s[i:i + 95]) + '\n')
+        for i in wrap(s, 95):
+            self.output.write(pre + i + '\n')
         self.output.flush()
 
     def _debug_off(self, s, *args, **kwarg):
@@ -208,7 +213,7 @@ class ZeroSetup(object):
 
     @property
     def subscriptions(self):
-        ''' Yields subscription topics.
+        ''' Returns the list of subscription topics.
             >>> ZeroSetup('pull', 8000).subscribing(['test:', 'error:']).subscriptions
             Traceback (most recent call last):
                 ...
@@ -236,7 +241,7 @@ class ZeroSetup(object):
 
     @property
     def transmits(self):
-        'True if the method member is a sending kind.'
+        'True if method is a sending kind.'
         return self.method in (zmq.PUSH, zmq.PUB, zmq.REQ, zmq.REP)
 
     @property
@@ -246,7 +251,7 @@ class ZeroSetup(object):
 
     @property
     def yields(self):
-        'True if method receives objects.'
+        'True if method is a receiving kind. Has nothing to do with python yield.'
         return self.method in (zmq.PULL, zmq.SUB, zmq.REQ, zmq.REP)
 
 
@@ -270,8 +275,8 @@ class ZeroRPC(object):
         'Catch-all method for when the object received does not fit.'
         return ['UnsupportedFunc', func, kwargs]
 
-    @classmethod
-    def _test_rpc(cls):
+    @staticmethod
+    def _test_rpc():
         ''' For doctest
             >>> ZeroRPC._test_rpc()
             REP u'hello'
@@ -284,18 +289,14 @@ class ZeroRPC(object):
             def sqr(self, x):
                 return x*x
 
-        def lstn():
+        def listen():
             zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
-            n = 2
-            for msg in zero:
+            for msg in izip(range(2), zero):
                 zero(msg)
-                n -= 1
-                if not n:
-                    break
             zero.sock.close()
 
         from threading import Thread
-        t = Thread(name='TestRPC', target=lstn)
+        t = Thread(name='TestRPC', target=listen)
         t.daemon = True
         t.start()
 
@@ -364,7 +365,7 @@ class Zero(object):
         return self
 
     def activated(self, zerorpc):
-        ''' Sets an ZeroRPC object that gets called when messages are received.
+        ''' Sets a ZeroRPC object that gets called when messages are received.
             >>> Zero(ZeroSetup('push', 8000)).activated(iter([]).next) # doctest: +ELLIPSIS
             Traceback (most recent call last):
                 ...
@@ -404,8 +405,10 @@ class Zero(object):
         return res
 
     def __call__(self, obj):
-        ''' Send and block while waitingfor response, unless not self.setup.block
-            (the caller must call .next(), before sending the next message).
+        ''' Sends obj. If method is zmq.REQ the response is returned, unless
+            the setup is non blocking. In that case retrieving the message is
+            skipped and the caller is responsible for calling .next() before
+            attempting to send the next message.
         '''
         self.send(obj)
         if self.setup.method == zmq.REQ and self.setup.block:
@@ -428,7 +431,6 @@ class Zero(object):
 
 def zauto(zero, loops):
     'Keep listening and sending until the loop ends. All received objects are yielded.'
-    from itertools import izip
     try:
         if zero.setup.replies:
             for rep, msg in izip(loops, zero):
