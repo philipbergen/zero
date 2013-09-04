@@ -47,7 +47,7 @@ def zlogger(config, sender):
     slog = Zero(ZeroSetup('push', 'tcp://%(host)s:%(port)s' % config).nonblocking())
 
     def thread(slog=slog):
-        for t in logq:
+        for t in iter(logq.get, ''):
             slog(t)
     t = Thread(target=thread)
     t.daemon = True
