@@ -291,7 +291,7 @@ class ZeroRPC(object):
 
         def listen():
             zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
-            for msg in izip(range(2), zero):
+            for _, msg in izip(range(2), zero):
                 zero(msg)
             zero.sock.close()
 
