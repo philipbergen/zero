@@ -1,19 +1,20 @@
 zero
 ====
 
-Zero MQ wrapper that makes it trivial to set up [0MQ](http://zeromq.org/) connections.
-A wrapper for a wrapper... Does that make any sense? Well, to me it did, since the
-[pyzmq](https://github.com/zeromq/pyzmq) wrapper tries to stay very close to the
-reference C implementation.
+Zero MQ wrapper that makes it trivial to set up [0MQ](http://zeromq.org/)
+connections. A wrapper for a wrapper... Does that make any sense? Well, to me
+it did, since the [pyzmq](https://github.com/zeromq/pyzmq) wrapper tries to
+stay very close to the reference C implementation.
 
-zero tries to be simpler to use. It doesn't supply all of the fine aspects and features
-of 0MQ, (though they are available through member variables `ctx` and `sock`). Instead
-it aims to make 0MQ messaging trivial.
+zero tries to be simpler to use. It doesn't supply all of the fine aspects and
+features of 0MQ, (though they are available through member variables `ctx` and
+`sock`). Instead it aims to make 0MQ messaging trivial.
 
-You can even get access to it all through a command line interface. Very useful for
-testing 0MQ even if you are not writing your program in python at all.
+You can even get access to it all through a command line interface. Very useful
+for testing 0MQ even if you are not writing your program in python at all.
 
-Example, a server that pulls messages (fan-in) and publishes a stream of them (fan-out):
+Example, a server that pulls messages (fan-in) and publishes a stream of them
+(fan-out):
 
 ```bash
 zero pull 8000 | zero pub 8001 -
