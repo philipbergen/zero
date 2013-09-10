@@ -5,6 +5,6 @@ python:
   - "2.6"
   - "2.5"
 install:
-  - "pip install pyzmq --zmq=bundled"
+  - "pip install pyzmq --install-option=--zmq=bundled"
   - "pip install docopt"
 script: "cd py; python zero.py test -v"
