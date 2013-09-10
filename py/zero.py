@@ -303,7 +303,8 @@ class ZeroRPC(object):
                 return x*x
 
         def listen():
-            zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
+            # For unknown reasons using port 8000 in this particular test fails
+            zero = Zero(ZeroSetup('rep', 8001)).activated(Z())
             for _, msg in izip(range(2), zero):
                 zero(msg)
             zero.sock.close()
@@ -313,7 +314,7 @@ class ZeroRPC(object):
         t.daemon = True
         t.start()
 
-        zero = Zero(ZeroSetup('req', 8000))
+        zero = Zero(ZeroSetup('req', 8001))
         msg = ['hi']
         rep = zero(msg)
         print 'REP %r' % rep
@@ -325,28 +326,16 @@ class ZeroRPC(object):
 class Zero(object):
     ''' ZMQ wrapper object that gets its setup from ZeroSetup.
 
-        # To PUB a number of objects (push is the same, except 'push' method):
+        # To push objects (pub is the same except replace 'push' with 'pub'):
+        z = Zero(ZeroSetup('push', 8000))
+        z(obj)
 
-        z = Zero(ZeroSetup('pub', 8000))
-        for obj in objects:
-            z(obj)
-
-        # To make a number of REQ calls:
-
-        z = Zero(ZeroSetup('req', 8000))
-        res = map(z, objects)
-
-        # To print objects from a PULL (or sub):
-
-        z = Zero(ZeroSetup('pull', 8000).binding())
+        # To pull objects:
+        z = Zero(ZeroSetup('pull', 8000))
         for obj in z:
-            print obj
+            print 'Pulled', obj
 
-        # To REP twice the sent object
-
-        z = Zero(ZeroSetup('rep', 8000).binding())
-        for obj in z:
-            z(2*obj)
+        See more examples here: https://github.com/philipbergen/zero#python-api
     '''
 
     def __init__(self, setup):

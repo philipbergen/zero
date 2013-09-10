@@ -246,6 +246,6 @@ Test
 Set up environment and run tests:
 
     . ./env.sh
-    python py/zero.py test
+    zero test
 
 Optionally `-v` for a more verbose test report.
