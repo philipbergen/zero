@@ -26,54 +26,28 @@ quiet_import () {
 }
 
 ##
-# Returns true (0) if $1 is brew installed
-quiet_brewed () {
-    brew info $1 >/dev/null 2>&1 || return 1
-    [ "$(brew info $1 | head -3 | tail -1)" = "Not installed" ] && return 1
-    return 0
-}
-
-##
-# Installs Homebrew
+# Installs pip and then goes on to use pip to install required 
+# python modules.
 install_libs() {
-    if [ $(uname) = Darwin ]; then
-        echo "*** INFO: Checking brew"
-        quiet_which brew || {
-            echo "*** INFO: Brew is not installed, installing."
-            ruby -e "$(curl -fsSL https://raw.github.com/mxcl/homebrew/go)"
-        }
-        echo "*** INFO: Checking libraries"
-        for a in zeromq readline ; do
-            quiet_brewed $a || {
-                echo "*** INFO: Missing brew $a, installing."
-                brew install $a
-            }
-        done
-        echo "*** INFO: Checkin python dependencies"
-        quiet_which python || {
-            echo "*** INFO: Python is not installed, installing."
-            brew install python
-        }
-    else
-        echo "*** WARNING: This is not Mac OS X. You need to install zeromq"
-        echo "             using your system's installation routines or from"
-        echo "             source: http://zeromq.org/intro:get-the-software"
-        quiet_which python || {
-            echo "*** ERROR: You will also need to install python."
-            exit 1
-        }
-    fi
+    quiet_which python || {
+        echo "*** ERROR: python is required"
+        exit 1
+    }
     quiet_which pip || {
         echo "*** INFO: Pip is not installed, installing."
         curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
         echo "*** WARNING: Pip installation requires sudo, please enter sudo password:"
         sudo python get-pip.py
-        rm -f get-pip.py
+        rm -f get-pip.py*
     }
-    for mod in docopt zmq; do
+    quiet_import zmq || {
+        echo "*** INFO: Installing missing python module pyzmq"
+        pip install --egg --user --install-option=--zmq=bundled --install-option=--prefix= pyzmq
+    }
+    for mod in docopt; do
         quiet_import $mod || {
             echo "*** INFO: Python module $mod is not installed, installing."
-            pip install --user $mod
+            pip install --egg --user --install-option=--prefix= $mod
         }
     done
 }

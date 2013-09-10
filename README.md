@@ -22,14 +22,13 @@ zero pull 8000 | zero pub 8001 -
 
 Installation
 ------------
-I have developed on a Mac. This should work on all unix, but the installer will
-only help you install zeromq and python using homebrew, so if your platform is
-not OS X, you will need to install libzmq and python manually first.
-
-If you need to do that, the installer will instruct you so.
+The installer will install pip if it is missing and then use that to install 
+the zmq module (pyzmq) and a few other requirements.
 
     ./install.sh
     . ./env.sh
+
+*Note:* I developed this on a Mac, should work on other unix as well.
 
 Command line interface
 ----------------------
