@@ -80,7 +80,7 @@ EOF
 }
 
 ##
-# Creates an env.sh file to set up the proper environment to run noep in
+# Creates an env.sh file to set up the proper environment to run zero in
 create_env () {
     PYPKG=$(pip show pyzmq|grep Location |cut -d' ' -f2)
     echo "*** INFO: Creating env.sh."
@@ -100,6 +100,3 @@ create_env
 . ./env.sh
 install_libs
 install_bins
-
-echo "*** INFO: You should source env.sh for environment correctness:"
-echo "          . ./env.sh"
