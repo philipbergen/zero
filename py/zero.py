@@ -5,7 +5,7 @@
 # Copyright (c) 2013 Philip Bergen, philip.bergen@me.com
 
 ''' Zero MQ command line interface.
-sub push req: connect
+
 Usage:
     zero [--dbg] [--wait] (pub|rep) <socket> [-c] (-|<message> [<message>...])
     zero [--dbg] [--wait] (push|req) <socket> [-b] (-|<message> [<message>...])
@@ -16,8 +16,9 @@ Usage:
 Options:
     -b, --bind      Use bind instead of connect
     -c, --connect   Use connect instead of bind
-    --wait          Waits for user input at the end of the program, before quitting
     -n MESSAGES     Number of messages before exiting [default: inf]
+    --wait          Waits for user input at the end of the program, before
+                    quitting
     --dbg           Enables debug output
 
 <socket> is a zmq socket or just a port, in which case the host is assumed to

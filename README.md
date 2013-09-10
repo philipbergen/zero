@@ -44,8 +44,9 @@ Overall usage (see complete with `zero -h`):
     Options:
 	-b, --bind      Use bind instead of connect
 	-c, --connect   Use connect instead of bind
-        --wait          Waits for user input at the end of the program, before quitting
         -n MESSAGES     Number of messages before exiting [default: inf]
+        --wait          Waits for user input at the end of the program, before
+                        quitting
         --dbg           Enables debug output
 
 ### Push-pull
