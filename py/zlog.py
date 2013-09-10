@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+##
+# https://github.com/philipbergen/zero
+# Licensed under terms of MIT license (see LICENSE-MIT)
+# Copyright (c) 2013 Philip Bergen, philip.bergen@me.com
 
 ''' USAGE:
       zlog [<config>] (lol|fyi|wtf|omg) <sender> (-|<message> <message>...)

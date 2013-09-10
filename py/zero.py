@@ -21,12 +21,14 @@ Options:
     --dbg           Enables debug output
 
 <socket> is a zmq socket or just a port, in which case the host is assumed to
-be localhost. Zmq sockets are things like zmq://*:<port> or
-zmq://<hostname>:<port>.
+be localhost. Zmq sockets are things like tcp://*:<port> or
+tcp://<hostname>:<port>.
 
-<message> is assumed to be a json formatted message. If multiple <message>
-are given each are sent individually. If <message> is -, messages are read
-from stdin, the assumption is that each message is contained in a single line.
+<message> is assumed to just be a string. If multiple <message>
+are given each are sent individually.
+
+If - is given, messages are read from stdin. The assumption is that each
+message is a JSON object, contained in a single line.
 
 <subscription> is any string, only messages that start with any of the
 subscriptions will be retrieved. Omit this value to subscribe to all messages.
@@ -118,14 +120,15 @@ class ZeroSetup(object):
 
     @staticmethod
     def iter_stdin():
-        ''' Reads a line from stdin, stripping right side white space. Returns None when
-            stdin is closed.
+        ''' Reads a line from stdin, stripping right side white space, unmarshalling
+            json. Returns None when stdin is closed.
         '''
+        from json import loads
         def liner():
             res = sys.stdin.readline()
             if not res:
                 return None
-            return res.rstrip()
+            return loads(res.rstrip())
         return iter(liner, None)
 
     def __repr__(self):
@@ -493,11 +496,6 @@ def main():
 
     setup, loop = ZeroSetup.argv()
     zero = Zero(setup)
-    # Pass data raw and unmodified through from stdin to stdout
-    zero.marshals(lambda x: x, lambda x: x)
-    if not setup.args['-']:
-        # Except treat arguments as strings
-        zero.marshals(json.dumps)
     for msg in zauto(zero, loop):
         sys.stdout.write(json.dumps(msg) + '\n')
         sys.stdout.flush()

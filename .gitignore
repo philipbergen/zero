@@ -2,7 +2,7 @@
 /env.py
 /logged.json
 .*.swp
-
+/bin
 
 *.py[cod]
 
