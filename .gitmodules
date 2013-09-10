@@ -1,3 +1,0 @@
-[submodule "ext/docopt"]
-	path = ext/docopt
-	url = https://github.com/docopt/docopt
