@@ -26,7 +26,6 @@ The installer will install pip if it is missing and then use that to install
 the zmq module (pyzmq) and a few other requirements.
 
     ./install.sh
-    . ./env.sh
 
 *Note:* I developed this on a Mac, should work on other unix as well.
 
@@ -245,8 +244,7 @@ Test
 ----
 Set up environment and run tests:
 
-    . ./env.sh
-    zero test
+    bin/zero test
 
 Optionally `-v` for a more verbose test report.
 
