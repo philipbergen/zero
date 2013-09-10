@@ -303,24 +303,25 @@ class ZeroRPC(object):
                 return x*x
 
         def listen():
-            # For unknown reasons using port 8000 in this particular test fails
-            zero = Zero(ZeroSetup('rep', 8001)).activated(Z())
+            zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
             for _, msg in izip(range(2), zero):
                 zero(msg)
-            zero.sock.close()
+            zero.close()
 
         from threading import Thread
         t = Thread(name='TestRPC', target=listen)
         t.daemon = True
         t.start()
 
-        zero = Zero(ZeroSetup('req', 8001))
+        zero = Zero(ZeroSetup('req', 8000))
         msg = ['hi']
         rep = zero(msg)
         print 'REP %r' % rep
         msg = ['sqr', {'x': 10}]
         rep = zero(msg)
         print 'REP %r' % rep
+        zero.close()
+        t.join()
 
 
 class Zero(object):
@@ -340,23 +341,18 @@ class Zero(object):
 
     def __init__(self, setup):
         self.setup = setup
+        self.marshals()
+        self.naptime = 0.5
         if not hasattr(setup, 'ctx'):
             setup.ctx = zmq.Context()
-        self.sock = setup.ctx.socket(setup.method)
-        if setup.linger:
-            self.sock.setsockopt(zmq.LINGER, setup.linger)
-        for subsc in setup.subscriptions:
-            self.sock.setsockopt(zmq.SUBSCRIBE, subsc)
-        if setup.bind:
-            self.sock.bind(setup.point)
-        else:
-            self.sock.connect(setup.point)
-        self.marshals()
-        setup.debug('Created ZMQ socket %r', self)
-        self.naptime = 0.5
 
     def __del__(self):
-        self.sock.close()
+        self.close()
+
+    def close(self):
+        if hasattr(self, '_sock'):
+            self._sock.close()
+            del self._sock
 
     def marshals(self, encode=json.dumps, decode=json.loads):
         ''' Set automatic marshalling functions. Example for raw input:
@@ -393,6 +389,21 @@ class Zero(object):
             res.append('.activated(%r)' % self.rpc)
         return ''.join(res)
     __str__ = __repr__
+
+    @property
+    def sock(self):
+        if not hasattr(self, '_sock'):
+            self._sock = self.setup.ctx.socket(self.setup.method)
+            if self.setup.linger:
+                self._sock.setsockopt(zmq.LINGER, self.setup.linger)
+            for subsc in self.setup.subscriptions:
+                self._sock.setsockopt(zmq.SUBSCRIBE, subsc)
+            if self.setup.bind:
+                self._sock.bind(self.setup.point)
+            else:
+                self._sock.connect(self.setup.point)
+            self.setup.debug('Created ZMQ socket %r', self)
+        return self._sock
 
     def __iter__(self):
         return self
@@ -453,7 +464,7 @@ def zauto(zero, loops):
         zero.setup.debug('Loop ended')
     finally:
         zero.setup.debug('Closing: %r', zero)
-        zero.sock.close()
+        zero.close()
 
 
 def zbg(zero, loop, callback):
@@ -464,10 +475,12 @@ def zbg(zero, loop, callback):
         >>> zero = Zero(setup)
         >>> t = zbg(zero, loop, q.put)
         >>> setup, loop = ZeroSetup.argv('req 8000 hi'.split())
-        >>> zero = Zero(setup)
-        >>> list(zauto(zero, loop))
+        >>> zero2 = Zero(setup)
+        >>> list(zauto(zero2, loop))
         [u'hello']
         >>> t.join()
+        >>> zero.close()
+        >>> zero2.close()
     '''
     def tloop(zero, loop, callback):
         for obj in zauto(zero, loop):
@@ -491,6 +504,7 @@ def main():
         sys.stdout.flush()
     if setup.args['--wait']:
         raw_input('Press enter when done.')
+    zero.close()
 
 
 if __name__ == '__main__':
