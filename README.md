@@ -26,7 +26,7 @@ I have developed on a Mac. This should work on all unix, but the installer will
 only help you install zeromq and python using homebrew, so if your platform is
 not OS X, you will need to install libzmq and python manually first.
 
-If you need to do that, the installer will instaruct you so.
+If you need to do that, the installer will instruct you so.
 
     ./install.sh
     . ./env.sh
