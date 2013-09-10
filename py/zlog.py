@@ -61,12 +61,13 @@ def zlogger(config, sender):
 
 def main():
     'For CLI use, see usage in __doc__.'
-    from env import HERE
+    import os.path
     from sys import argv, exit
     from json import load
     from os.path import exists
     from itertools import imap
     from collections import deque
+    HERE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     args = deque(argv[1:])
     if len(args) < 3:
         exit(__doc__)

@@ -55,10 +55,11 @@ class Logout(object):
 
 
 def main():
-    from env import HERE
+    import os.path
     from sys import argv
     from json import load
     from zero import Zero, ZeroSetup
+    HERE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     conf = HERE + '/log.json'
     if len(argv) > 1:
         conf = argv[1]

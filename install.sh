@@ -70,25 +70,19 @@ install_libs() {
         sudo python get-pip.py
         rm -f get-pip.py
     }
-    quiet_import clint || {
-        echo "*** INFO: Python module clint is not installed, installing."
-        pip install --user clint
-    }
-    quiet_import zmq || {
-        echo "*** INFO: Python module pyzmq is not installed, installing."
-        pip install --user pyzmq
-    }
-    if [ ! -f $here/py/docopt.py ]; then
-        echo "*** INFO: Python module docopt is not installed, installing into $here/py."
-        curl https://raw.github.com/docopt/docopt/master/docopt.py > $here/py/docopt.py
-    fi
+    for mod in docopt zmq; do
+        quiet_import $mod || {
+            echo "*** INFO: Python module $mod is not installed, installing."
+            pip install --user $mod
+        }
+    done
 }
 
 install_bins () {
     echo "*** INFO: Creating bin/executables"
     cd $here
     mkdir -p bin
-    cd bin
+    cd bin >/dev/null
     cat > zero <<EOF
 #!/bin/bash
 . $here/env.sh
@@ -99,32 +93,30 @@ EOF
         rm -f $exe
         ln -s zero $exe
     done
-    cd ..
+    cd .. >/dev/null
     echo "*** INFO: Created" bin/*
 }
 
 ##
 # Creates an env.sh file to set up the proper environment to run noep in
 create_env () {
-    echo "*** INFO: Creating env.sh. Use . ./env.sh to set up the noep environment."
+    PYPKG=$(pip show pyzmq|grep Location |cut -d' ' -f2)
+    echo "*** INFO: Creating env.sh."
     cat > env.sh <<EOF
-export PYTHONPATH="/usr/local/lib/python2.7/site-packages:/Library/Python/2.7/site-packages:$here/py:$here/bin:$here"
+export PYTHONPATH="$PYPKG:$here/py:$here/bin:$here"
 export PATH="/usr/local/share/python:\$HOME/Library/Python/2.7/bin:$here/bin:\$PATH"
 
 [ $(uname) = Darwin ] && launchctl limit maxfiles 16384
 EOF
     chmod a+x env.sh
-    echo "*** INFO: Creating env.py."
-    cat > env.py <<EOF
-HERE = '$here'
-BIN = HERE + '/bin'
-HOSTNAME = '$(hostname -f)'
-EOF
 }
 
 cd "$here"
+rm -f env.py* py/docopt.py*
 create_env
 . ./env.sh
-echo "*** INFO: You should source env.sh for environment correctness"
 install_libs
 install_bins
+
+echo "*** INFO: You should source env.sh for environment correctness:"
+echo "          . ./env.sh"
