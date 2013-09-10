@@ -96,7 +96,17 @@ Fan-out pub-sub with subscriber filter:
 Python API
 ----------
 
-Default marshalling is json. Marshalling is configurable. See below
+Most important in the `zero` module is `ZeroSetup` and `Zero`. The 
+`ZeroSetup` is the input to constructing `Zero`. That way the result
+of docopt (`ZeroSetup.argv`) is the same as using `ZeroSetup()` and
+calling a few factory-like functions on it.
+
+The `Zero` object is both *callable* and *iterable*. Iterate over
+incoming messages and call to transmit a message. Objects are
+automatically marshalled before returning out of the iterator or before
+transmission.
+
+Default marshalling is JSON. Marshalling is configurable. See below
 for more information. All examples assume `from zero import *`.
 
 ### Push-pull fan-in
@@ -113,10 +123,12 @@ for msg in zero:
 
 ```python
 # The push (connect) client, with debugging on, so that it is visible
-# what the client is doing. Connects to localhost.
+# what the client is doing. Connects to localhost and sends three 
+# messages ("alpha", "beta", "gamma").
 zero = Zero(ZeroSetup('push', 8000).debugging())
-for msg in ['alpha', 'beta', 'gamma']:
-    zero(msg)
+zero('alpha')
+zero('beta')
+zero('gamma')
 ```
 
 ### Push-pull fan-out
