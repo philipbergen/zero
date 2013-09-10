@@ -249,3 +249,7 @@ Set up environment and run tests:
     zero test
 
 Optionally `-v` for a more verbose test report.
+
+[Travis](https://travis-ci.org/philipbergen/zero) continuous integration:
+<br/>
+<img src="https://api.travis-ci.org/philipbergen/zero.png"/>
