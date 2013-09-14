@@ -39,7 +39,7 @@ import zmq
 import json
 from itertools import izip
 
-__all__ = ('ZeroSetup', 'Zero', 'ZeroRPC')
+__all__ = ('ZeroSetup', 'Zero')
 
 
 class ZeroSetup(object):
@@ -63,8 +63,7 @@ class ZeroSetup(object):
             (method is sub/pull/rep).
             point -- a port number or a zmq url that is valid for the method.
         '''
-        self._method = method
-        self.method = getattr(zmq, method.upper())
+        self._method = method.lower()
         self.bind = self.method not in (zmq.SUB, zmq.PUSH, zmq.REQ)
         self.debugging(False)
         self._point = point
@@ -210,10 +209,44 @@ class ZeroSetup(object):
         self.debug = self._debug_on if val else self._debug_off
         return self
 
-    def nonblocking(self, val=False):
-        'Switches blocking sends, calls.'
+    def nonblocking(self, val=True):
+        ''' Switches blocking sends, calls.
+            >>> setup = ZeroSetup('push', 8000).nonblocking()
+            >>> setup
+            ZeroSetup('push', 8000).binding(False).nonblocking()
+            >>> Zero(setup)('sent')
+            >>> Zero(ZeroSetup('pull', 8000)).next()
+            u'sent'
+        '''
         self.block = not val
         return self
+
+    def opposite(self):
+        ''' Returns a setup opposite of this, rep for req, push for pull etc.
+            Flips binding and turns off debug.
+
+            >>> ZeroSetup('pub', 8000).opposite()
+            ZeroSetup('sub', 8000).binding(False).subscribing([''])
+            >>> ZeroSetup('sub', 8000).opposite()
+            ZeroSetup('pub', 8000).binding(True)
+            >>> ZeroSetup('pull', 8000).binding(False).debugging().opposite()
+            ZeroSetup('push', 8000).binding(True)
+        '''
+        res = eval(repr(self))
+        if res._method == 'pub':
+            res._method = 'sub'
+        elif res._method == 'sub':
+            res._method = 'pub'
+        elif res._method == 'pull':
+            res._method = 'push'
+        elif res._method == 'push':
+            res._method = 'pull'
+
+        elif res._method == 'rep':
+            res._method = 'req'
+        elif res._method == 'req':
+            res._method = 'rep'
+        return res.binding(not res.bind).debugging(False)
 
     @property
     def subscriptions(self):
@@ -226,6 +259,14 @@ class ZeroSetup(object):
         if self.method == zmq.SUB:
             return getattr(self, '_filters', [''])
         return []
+
+    @property
+    def method(self):
+        ''' Returns the zmq method constant.
+            >>> ZeroSetup('pull', 8000).method == zmq.PULL
+            True
+        '''
+        return getattr(zmq, self._method.upper())
 
     @property
     def point(self):
@@ -257,71 +298,6 @@ class ZeroSetup(object):
     def yields(self):
         'True if method is a receiving kind. Has nothing to do with python yield.'
         return self.method in (zmq.PULL, zmq.SUB, zmq.REQ, zmq.REP)
-
-
-class ZeroRPC(object):
-    ''' Inherit and implement your own methods on from this.
-        Then supply to ZeroSetup:
-
-        Zero(ZeroSetup('pull', 8000)).activated(ZeroRPC())
-    '''
-    def __init__(self, zlg=None):
-        self.zlg = zlg
-
-    def __call__(self, obj):
-        'Calls the method from obj (always of the form [<method name>, {<kwargs>}]).'
-        from traceback import format_exc
-        try:
-            if obj[0][:1] == '_':
-                raise Exception('Method not available')
-            if len(obj) == 1:
-                obj = [obj[0], {}]
-            if not hasattr(self, obj[0]):
-                return self._unsupported(obj[0], **obj[1])
-            return getattr(self, obj[0])(**obj[1])
-        except:
-            if self.zlg:
-                self.zlg.omg('Exception: ' + format_exc())
-            return ['ERROR', format_exc()]
-
-    def _unsupported(self, func, **kwargs):
-        'Catch-all method for when the object received does not fit.'
-        return ['UnsupportedFunc', func, kwargs]
-
-    @staticmethod
-    def _test_rpc():
-        ''' For doctest
-            >>> ZeroRPC._test_rpc()
-            REP u'hello'
-            REP 100
-        '''
-        class Z(ZeroRPC):
-            def hi(self):
-                return "hello"
-
-            def sqr(self, x):
-                return x*x
-
-        def listen():
-            zero = Zero(ZeroSetup('rep', 8000)).activated(Z())
-            for _, msg in izip(range(2), zero):
-                zero(msg)
-            zero.close()
-
-        from threading import Thread
-        t = Thread(name='TestRPC', target=listen)
-        t.daemon = True
-        t.start()
-
-        zero = Zero(ZeroSetup('req', 8000))
-        msg = ['hi']
-        rep = zero(msg)
-        print 'REP %r' % rep
-        msg = ['sqr', {'x': 10}]
-        rep = zero(msg)
-        print 'REP %r' % rep
-        zero.close()
-        t.join()
 
 
 class Zero(object):
@@ -392,6 +368,7 @@ class Zero(object):
 
     @property
     def sock(self):
+        'Returns the zmq.Socket, lazy initialization.'
         if not hasattr(self, '_sock'):
             self._sock = self.setup.ctx.socket(self.setup.method)
             if self.setup.linger:
@@ -409,8 +386,8 @@ class Zero(object):
         return self
 
     def next(self):
-        ''' Blocks regardless of self.setup.block. If method is rep,
-            must send reply before going to next().
+        ''' Receives a message. Blocks regardless of self.setup.block. If method is rep, must send
+            reply before going to next(). The message is unmarshalled and returned.
         '''
         res = self._decode(self.sock.recv())
         self.setup.debug('Received %r from %s', res, self.setup.point)
@@ -419,10 +396,9 @@ class Zero(object):
         return res
 
     def __call__(self, obj):
-        ''' Sends obj. If method is zmq.REQ the response is returned, unless
-            the setup is non blocking. In that case retrieving the message is
-            skipped and the caller is responsible for calling .next() before
-            attempting to send the next message.
+        ''' Sends obj. If method is zmq.REQ the response is returned, unless the setup is non
+            blocking. In that case retrieving the message is skipped and the caller is responsible
+            for calling .next() before attempting to send the next message.
         '''
         self.send(obj)
         if self.setup.method == zmq.REQ and self.setup.block:
@@ -492,20 +468,10 @@ def zbg(zero, loop, callback):
     return t
 
 
-def main():
-    if len(sys.argv) > 1 and sys.argv[1] == 'test':
-        import doctest
-        return doctest.testmod()
-
-    setup, loop = ZeroSetup.argv()
-    zero = Zero(setup)
-    for msg in zauto(zero, loop):
-        sys.stdout.write(json.dumps(msg) + '\n')
-        sys.stdout.flush()
-    if setup.args['--wait']:
-        raw_input('Press enter when done.')
-    zero.close()
-
+def _test():
+    import doctest
+    return doctest.testmod()
+    
 
 if __name__ == '__main__':
-    main()
+    _test()

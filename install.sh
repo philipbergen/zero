@@ -82,10 +82,10 @@ EOF
 ##
 # Creates an env.sh file to set up the proper environment to run zero in
 create_env () {
-    PYPKG=$(pip show pyzmq|grep Location |cut -d' ' -f2)
+    PYPKG=$(dirname $(pip show pyzmq|grep Location |cut -d' ' -f2))
     echo "*** INFO: Creating env.sh."
     cat > env.sh <<EOF
-export PYTHONPATH="$PYPKG:$here/py:$here/bin:$here"
+export PYTHONPATH="$here/py:$here/bin:$here"
 export PATH="/usr/local/share/python:\$HOME/Library/Python/2.7/bin:$here/bin:\$PATH"
 
 [ $(uname) = Darwin ] && launchctl limit maxfiles 16384
