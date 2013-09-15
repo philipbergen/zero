@@ -22,10 +22,10 @@ class ZeroRPC(object):
                 obj = [obj[0], {}]
             if not hasattr(self, obj[0]):
                 return self._unsupported(obj[0], **obj[1])
-            return getattr(self, obj[0])(**obj[1])
+            func = getattr(self, obj[0])
+            return func(**obj[1])
         except:
-            if self.zlg:
-                self.zlg.omg('Exception: ' + format_exc())
+            self.zero.setup.err('Exception: ' + format_exc())
             return ['ERROR', format_exc()]
 
     def _unsupported(self, func, **kwargs):
@@ -40,7 +40,7 @@ class ZeroRPC(object):
             REP u'hello'
             REP 100
         '''
-        from ..zero import Zero, ZeroSetup
+        from zero import Zero, ZeroSetup
         class Z(ZeroRPC):
             def hi(self):
                 return "hello"
@@ -62,10 +62,10 @@ class ZeroRPC(object):
         zero = Zero(ZeroSetup('req', 8000))
         msg = ['hi']
         rep = zero(msg)
-        print 'REP %r' % rep
+        print('REP %r' % rep)
         msg = ['sqr', {'x': 10}]
         rep = zero(msg)
-        print 'REP %r' % rep
+        print('REP %r' % rep)
         zero.close()
         t.join()
 
@@ -130,28 +130,42 @@ class ConfiguredRPC(ZeroRPC):
 def zrpc(sysconfig, workertype):
     ''' Returns an activated Zero with RPC worker of type workertype as specified in sysconfig.
         >>> from .test import _get_test_config
+        >>> from zero import zbg
+        >>> from itertools import izip
+        >>> from socket import gethostname
+        >>> from time import time
         >>> cfg = _get_test_config()
         >>> z = zrpc(cfg, 'common')
         >>> o = z.opposite()
-        >>> z
+        >>> z  # doctest: +ELLIPSIS
+        Zero(ZeroSetup('rep', 8000).binding(True)).activated(<zero.test.CommonRPC object at ...>)
         >>> o
-        >>> from ..zero import zbg
-        >>> from itertools import izip
-        >>> t = zbg(o, [['ping'], ['echo', 'Hello'], ['hostname'], ['time']], print)
-        >>> for _, msg in izip(range(4), z):
+        Zero(ZeroSetup('req', 8000).binding(False))
+        >>> t = zbg(o, [['ping'], ['echo', {'msg': 'Hello'}], ['hostname'], ['time']], lambda x: x)
+        >>> reps = []
+        >>> for _, msg in izip(range(4), z):  # doctest: +ELLIPSIS
+        ...     reps.append(msg)
         ...     z(msg)
+        >>> reps[0]
+        'pong'
+        >>> reps[1]
+        u'Hello'
+        >>> reps[2] == gethostname()
+        True
+        >>> abs(time() - reps[3]) < 1
+        True
         >>> t.join()
     '''
-    from ..zero import Zero, ZeroSetup
+    from zero import Zero, ZeroSetup
     wconf = sysconfig['workers'][workertype]
     zconf = wconf['zmq']
-    setup = ZeroSetup(zconf['method'], zconf['port']).debug(zconf.get('debug', False))
+    setup = ZeroSetup(zconf['method'], zconf['port']).debugging(zconf.get('debug', False))
     if 'bind' in zconf:
         setup.binding(zconf['bind'])
     if 'host' in zconf and not setup.bind:
         setup._point = 'tcp://%(host)s:%(port)s' % zconf
     mod = __import__(wconf['module'])
-    while modpart in wconf['module'].split('.')[1:]:
+    for modpart in wconf['module'].split('.')[1:]:
         mod = getattr(mod, modpart)
     klass = getattr(mod, wconf['class'])
     return Zero(setup).activated(klass(sysconfig, workertype))

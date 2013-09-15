@@ -34,6 +34,7 @@ message is a JSON object, contained in a single line.
 <subscription> is any string, only messages that start with any of the
 subscriptions will be retrieved. Omit this value to subscribe to all messages.
 '''
+from __future__ import print_function
 import sys
 import zmq
 import json
@@ -354,7 +355,7 @@ class Zero(object):
         if not callable(zerorpc):
             raise ValueError('Objects used for activation must be callable', self, zerorpc)
         self.rpc = zerorpc
-        self.rpc.ctx = self.setup.ctx
+        self.rpc.zero = self
         return self
 
     def __repr__(self):
@@ -417,6 +418,9 @@ class Zero(object):
     @property
     def active(self):
         return hasattr(self, 'rpc')
+
+    def opposite(self):
+        return Zero(self.setup.opposite())
 
 
 def zauto(zero, loops):

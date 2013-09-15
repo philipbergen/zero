@@ -5,8 +5,11 @@ def main():
         sys.path.insert(0, '..')
         import zero
         import zero.rpc
-        return doctest.testmod(zero, zero.rpc)
+        doctest.testmod(zero)
+        doctest.testmod(zero.rpc)
+        return
 
+    from zero import Zero, ZeroSetup, zauto
     setup, loop = ZeroSetup.argv()
     zero = Zero(setup)
     for msg in zauto(zero, loop):

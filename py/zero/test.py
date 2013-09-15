@@ -2,6 +2,7 @@
 '''
 
 __all__ = ('CommonRPC', '_get_test_config')
+from zero.rpc import ConfiguredRPC
 
 def _get_test_config():
     return {

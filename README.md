@@ -214,6 +214,8 @@ are not prefixed with `_` are exposed.
 
 Then create a zero and activate it with an RPC object.
 ```python
+from zero.rpc import ZeroRPC
+
 class RPCDemo(ZeroRPC):
     def ping(self):
         return "pong"
@@ -233,6 +235,50 @@ for msg in zero:
 zero = Zero(ZeroSetup('req', 8000))
 print zero(['ping'])
 print zero(['greet', {'name': 'Phil'}])
+```
+
+### Configuration based RPC
+
+Create a configuration object. The easiest way is a json file with
+your configuration. Configuration based RPC only looks at the section
+named `workers`, allowing other system specific setup to be stored
+alongside the RPC configuration.
+
+Example configuration file:
+
+```python
+config =  {'workers': {
+    'common': {
+        'module': 'zero.test',
+        'class': 'CommonRPC',
+        'zmq': {'port': 8000, 'method': 'rep'}
+    }
+}}
+```
+
+The `zmq` node also accepts (optional) `bind`, `debug` and `host`, see
+`rpc.py` for details.
+
+To establish an activated Zero with the RPC object  based on your
+configuration:
+
+```python
+from zero.rpc import zrpc
+
+zero = zrpc(config, 'common')
+for msg in zero:
+    zero(msg)
+```
+
+To call your RPC, create a client:
+
+```python
+from zero.rpc import zrpc
+
+zserver = zrpc(config, 'common')
+zero = zserver.opposite()
+
+print 'Server returned:', zero(['echo', {'msg': 'Say hello'}])
 ```
 
 Marshalling
