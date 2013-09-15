@@ -7,4 +7,4 @@ python:
 install:
   - "pip install --egg --user --install-option=--prefix= docopt"
   - "pip install --egg --user --install-option=--zmq=bundled --install-option=--prefix= pyzmq"
-script: "cd py; python zero.py test -v"
+script: "cd py; python -m zero test -v"
