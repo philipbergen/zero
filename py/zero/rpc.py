@@ -62,10 +62,10 @@ class ZeroRPC(object):
         zero = Zero(ZeroSetup('req', 8000))
         msg = ['hi']
         rep = zero(msg)
-        print('REP %r' % rep)
+        print 'REP %r' % rep
         msg = ['sqr', {'x': 10}]
         rep = zero(msg)
-        print('REP %r' % rep)
+        print 'REP %r' % rep
         zero.close()
         t.join()
 

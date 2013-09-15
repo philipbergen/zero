@@ -34,7 +34,6 @@ message is a JSON object, contained in a single line.
 <subscription> is any string, only messages that start with any of the
 subscriptions will be retrieved. Omit this value to subscribe to all messages.
 '''
-from __future__ import print_function
 import sys
 import zmq
 import json
