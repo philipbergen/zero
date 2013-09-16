@@ -1,6 +1,7 @@
 def main():
     import sys
     if len(sys.argv) > 1 and sys.argv[1] == 'test':
+        # Running tests, not zeros
         import doctest
         sys.path.insert(0, '..')
         import zero
@@ -14,12 +15,36 @@ def main():
         print 'Successfully completed %d tests.' % tests
         return
 
-    from zero import Zero, ZeroSetup, zauto
-    setup, loop = ZeroSetup.argv()
-    zero = Zero(setup)
-    for msg in zauto(zero, loop):
-        sys.stdout.write(json.dumps(msg) + '\n')
-        sys.stdout.flush()
+    from zero import Zero, ZeroSetup, zauto, UnsupportedZmqMethod
+    try:
+        # Regular zero run
+        setup, loop = ZeroSetup.argv()
+        zero = Zero(setup)
+
+        for msg in zauto(zero, loop):
+            sys.stdout.write(json.dumps(msg) + '\n')
+            sys.stdout.flush()
+    except UnsupportedZmqMethod, e:
+        args = e.args[2]
+        if args['rpc']:
+            # Configured RPC not supported by zauto
+            from zero.rpc import zrpc
+            from json import load
+            with open(args['<config>']) as fin:
+                config = load(fin)
+            if len(args['<type>']) == 1:
+                zero = zrpc(config, args['<type>'][0])
+                setup = zero.setup
+                if args['--dbg']:
+                    setup.debugging(True)
+                for msg in zero:
+                    if setup.transmits:
+                        zero(msg)
+            else:
+                raise ValueError('Multiple RPC workers not yet supported.', args['<type>'])
+        else:
+            # Something happened...
+            raise e
     if setup.args['--wait']:
         raw_input('Press enter when done.')
     zero.close()

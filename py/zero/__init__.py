@@ -11,6 +11,7 @@ Usage:
     zero [--dbg] [--wait] (push|req) <socket> [-b] (-|<message> [<message>...])
     zero [--dbg] [--wait] pull <socket> [-c] [-n MESSAGES]
     zero [--dbg] [--wait] sub <socket> [-b] [<subscription>...] [-n MESSAGES]
+    zero [--dbg] rpc <config> <type> [<type>...]
     zero test [-v]
 
 Options:
@@ -41,6 +42,9 @@ from itertools import izip
 
 __all__ = ('ZeroSetup', 'Zero')
 
+
+class UnsupportedZmqMethod(Exception):
+    'Serves to signal that the method chosen for the setup was invalid.'
 
 class ZeroSetup(object):
     ''' Simplifies 0MQ use and setup. Use with Zero, see below.
@@ -94,7 +98,10 @@ class ZeroSetup(object):
         from itertools import count
         args = docopt(__doc__, argv)
         method = [meth for meth in ('push', 'req', 'rep', 'pub', 'pull', 'sub')
-                  if args[meth]][0]
+                  if args[meth]]
+        if not method:
+            raise UnsupportedZmqMethod('Unsupported ZMQ method', '?', args)
+        method = method[0]
 
         setup = ZeroSetup(method, args['<socket>']).debugging(args['--dbg'])
         if args['--bind']:
@@ -266,7 +273,10 @@ class ZeroSetup(object):
             >>> ZeroSetup('pull', 8000).method == zmq.PULL
             True
         '''
-        return getattr(zmq, self._method.upper())
+        try:
+            return getattr(zmq, self._method.upper())
+        except AttributeError:
+            raise UnsupportedZmqMethod('Unsupported ZMQ method', self._method, {})
 
     @property
     def point(self):
