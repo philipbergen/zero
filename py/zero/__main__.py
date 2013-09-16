@@ -15,6 +15,7 @@ def main():
         print 'Successfully completed %d tests.' % tests
         return
 
+    import json
     from zero import Zero, ZeroSetup, zauto, UnsupportedZmqMethod
     try:
         # Regular zero run
@@ -29,9 +30,8 @@ def main():
         if args['rpc']:
             # Configured RPC not supported by zauto
             from zero.rpc import zrpc
-            from json import load
             with open(args['<config>']) as fin:
-                config = load(fin)
+                config = json.load(fin)
             if len(args['<type>']) == 1:
                 zero = zrpc(config, args['<type>'][0])
                 setup = zero.setup
