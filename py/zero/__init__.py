@@ -313,16 +313,24 @@ class ZeroSetup(object):
 class Zero(object):
     ''' ZMQ wrapper object that gets its setup from ZeroSetup.
 
-        # To push objects (pub is the same except replace 'push' with 'pub'):
-        z = Zero(ZeroSetup('push', 8000))
-        z(obj)
+        The Zero object is *iterable* for receiving messages. The Zero
+        object is also *callable* for sending messages. Finally the
+        Zero object is also a *context manager*, so it can be used in
+        with constructions.
 
-        # To pull objects:
-        z = Zero(ZeroSetup('pull', 8000))
-        for obj in z:
-            print 'Pulled', obj
+        To push objects (pub is the same except replace 'push' with 'pub'):
 
-        See more examples here: https://github.com/philipbergen/zero#python-api
+        with Zero(ZeroSetup('push', 8000)) as z:
+            z(obj)
+
+        To pull objects:
+
+        with Zero(ZeroSetup('pull', 8000)) as z:
+            for obj in z:
+                print 'Pulled', obj
+
+        See more examples here:
+        https://github.com/philipbergen/zero#python-api
     '''
 
     def __init__(self, setup):
@@ -413,6 +421,13 @@ class Zero(object):
         self.send(obj)
         if self.setup.method == zmq.REQ and self.setup.block:
             return self.next()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type=None, value=None, traceback=None):
+        self.close()
+        return False
 
     def send(self, obj):
         from time import sleep
