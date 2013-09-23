@@ -22,7 +22,7 @@ def main():
         setup, loop = ZeroSetup.argv()
         zero = Zero(setup)
 
-        for msg in zauto(zero, loop):
+        for msg in zauto(zero, loop, setup.args['--wait']):
             sys.stdout.write(json.dumps(msg) + '\n')
             sys.stdout.flush()
     except UnsupportedZmqMethod, e:
@@ -45,9 +45,9 @@ def main():
         else:
             # Something happened...
             raise e
-    if setup.args['--wait']:
-        raw_input('Press enter when done.')
-    zero.close()
+        if setup.args['--wait']:
+            raw_input('Press enter when done.')
+        zero.close()
     
 if __name__ == '__main__':
     main()

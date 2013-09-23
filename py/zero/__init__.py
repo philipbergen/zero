@@ -404,9 +404,11 @@ class Zero(object):
         return self
 
     def next(self):
-        ''' Receives a message. Blocks regardless of self.setup.block. If method is rep, must send
-            reply before going to next(). The message is unmarshalled and returned.
+        ''' Receives a message. If method is rep, must send reply before going to next(). The
+            message is unmarshalled and returned.
         '''
+        if not self.setup.block and not self.sock.poll(timeout=100): # Milliseconds; 0.1s
+            raise StopIteration()
         res = self._decode(self.sock.recv())
         self.setup.debug('Received %r from %s', res, self.setup.point)
         if self.active:
@@ -447,7 +449,7 @@ class Zero(object):
         return Zero(self.setup.opposite())
 
 
-def zauto(zero, loops):
+def zauto(zero, loops, wait=False):
     'Keep listening and sending until the loop ends. All received objects are yielded.'
     try:
         if zero.setup.replies:
@@ -467,6 +469,8 @@ def zauto(zero, loops):
     except StopIteration:
         zero.setup.debug('Loop ended')
     finally:
+        if wait:
+            raw_input('Press enter when done.')
         zero.setup.debug('Closing: %r', zero)
         zero.close()
 
