@@ -68,7 +68,25 @@ install_bins () {
     cat > zero <<EOF
 #!/bin/bash
 . $here/env.sh
-python -m \$(basename \$0) "\$@"
+trap ctrl_c EXIT
+
+function ctrl_c() {
+    set +eu
+    for pid in "\${pids[@]}"; do
+        kill -0 \$pid 2>/dev/null 1>/dev/null || {
+            continue
+        }
+        kill \$pid
+    done
+}
+
+pids=()
+function add_pid() {
+    pids=( \$1 \${pids[@]} )
+}
+python -m \$(basename \$0) "\$@"&
+add_pid \$!
+wait
 EOF
     chmod a+x zero
     for exe in zlog zlog-sink; do
@@ -85,7 +103,7 @@ create_env () {
     PYPKG=$(dirname $(pip show pyzmq|grep Location |cut -d' ' -f2))
     echo "*** INFO: Creating env.sh."
     cat > env.sh <<EOF
-export PYTHONPATH="$here/py:$here/bin:$here:\$PYTHONPATH"
+export PYTHONPATH="$here/py:$here/bin:$here:\${PYTHONPATH:-}"
 export PATH="/usr/local/share/python:\$HOME/Library/Python/2.7/bin:$here/bin:\$PATH"
 
 [ $(uname) = Darwin ] && launchctl limit maxfiles 16384
