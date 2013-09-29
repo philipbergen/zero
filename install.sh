@@ -68,25 +68,7 @@ install_bins () {
     cat > zero <<EOF
 #!/bin/bash
 . $here/env.sh
-trap ctrl_c EXIT
-
-function ctrl_c() {
-    set +eu
-    for pid in "\${pids[@]}"; do
-        kill -0 \$pid 2>/dev/null 1>/dev/null || {
-            continue
-        }
-        kill \$pid
-    done
-}
-
-pids=()
-function add_pid() {
-    pids=( \$1 \${pids[@]} )
-}
-python -m \$(basename \$0) "\$@"&
-add_pid \$!
-wait
+python -m \$(basename \$0) "\$@"
 EOF
     chmod a+x zero
     for exe in zlog zlog-sink; do
