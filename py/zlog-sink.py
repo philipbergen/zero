@@ -14,6 +14,7 @@ from ansicolor import *
 
 
 class Logout(object):
+    width = 100
     def __init__(self, conf):
         self.colwidth = [0] * 5
         self.lvls = {}
@@ -45,8 +46,8 @@ class Logout(object):
             lines = [repr(msg)]
         msg = []
         for tmp in lines:
-            for i in range(0, len(tmp), 70):
-                msg.append(tmp[i:i+70])
+            for i in range(0, len(tmp), self.width):
+                msg.append(tmp[i:i+self.width])
         msg = iter(msg)
         col = self.lvls[lvl]
         print wide(1, ts), col(wide(0, lvl)), col(wide(2, host))
