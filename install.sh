@@ -24,7 +24,8 @@ quiet_import () {
     mod=$1
     pip=$mod
     [ "$mod" = zmq ] && pip=pyzmq
-    pip show $pip | grep -q '^Location:' && return 0
+    pip show $pip > /tmp/pip-show
+    grep -q '^Location:' /tmp/pip-show && return 0
     echo "import $mod" | python >/dev/null 2>&1 && return 0
     return 1
 }
